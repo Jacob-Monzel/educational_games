@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import GeoQuizGame from "./games/geo-quiz/GeoQuizGame";
 import RelationalReasoningGame from "./games/relational-reasoning/RelationalReasoningGame";
+import StreetStoriesManhattan from "./games/street-stories/StreetStoriesManhattan";
 
 const GAME_LIBRARY = [
   {
@@ -19,6 +20,15 @@ const GAME_LIBRARY = [
     route: "/games/relational-reasoning",
     status: "Live",
     accent: "#3B82F6",
+  },
+  {
+    id: "street-stories-manhattan",
+    title: "Street Stories: Manhattan",
+    description:
+      "Interactive atlas for Manhattan street-name origins, former names, and changing names by segment.",
+    route: "/games/street-stories-manhattan",
+    status: "MVP",
+    accent: "#60a5fa",
   },
 ];
 
@@ -189,6 +199,7 @@ export default function SiteApp() {
     if (route === "/") return <LibraryHome />;
     if (route === "/games/geo-quiz") return <GeoQuizGame />;
     if (route === "/games/relational-reasoning") return <RelationalReasoningGame />;
+    if (route === "/games/street-stories-manhattan") return <StreetStoriesManhattan />;
     return <NotFound />;
   }, [route]);
 
