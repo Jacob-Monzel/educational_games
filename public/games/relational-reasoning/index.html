@@ -306,6 +306,16 @@ function derive(r1,r2,t1,t2) {
 }
 
 function invert(rel,type) { return TYPES[type]?.inverses?.[rel]||null; }
+function negateRelation(rel,type) {
+  if (type==="sameopposite") {
+    return rel==="same as" ? "opposite to" : rel==="opposite to" ? "same as" : null;
+  }
+  return invert(rel,type);
+}
+function reverseDirection(rel,type) {
+  if (type==="sameopposite") return rel;
+  return invert(rel,type);
+}
 
 // ─── Problem generation ───
 function genProblem() {
@@ -344,7 +354,7 @@ function tryGen(fallback) {
 
     const neg = S.enableNegation && !fallback && Math.random()<0.3;
     const actual = rel;
-    const display = neg ? invert(rel,tk) : rel;
+    const display = neg ? negateRelation(rel,tk) : rel;
     if (!display && neg) return null;
 
     premises.push({ a:terms[i], b:terms[i+1], relation:neg?display:rel, negated:neg, type:tk, actualRelation:actual });
@@ -359,7 +369,7 @@ function tryGen(fallback) {
   let qA,qB,cRel,cType;
   if (S.enableMutualEntailment && !fallback && np>=2 && Math.random()<0.45) {
     if (Math.random()<0.5) {
-      qA=terms[numTerms-1]; qB=terms[0]; cRel=invert(derived.rel,derived.type); cType=derived.type;
+      qA=terms[numTerms-1]; qB=terms[0]; cRel=reverseDirection(derived.rel,derived.type); cType=derived.type;
       if (!cRel) return null;
     } else {
       const si=Math.random()*(numTerms-2)|0;
@@ -373,7 +383,7 @@ function tryGen(fallback) {
   } else { qA=terms[0]; qB=terms[numTerms-1]; cRel=derived.rel; cType=derived.type; }
 
   const showCorrect = Math.random()<0.5;
-  const presented = showCorrect ? cRel : invert(cRel,cType);
+  const presented = showCorrect ? cRel : negateRelation(cRel,cType);
   if (!presented) return null;
 
   const shuffled = np>2 ? [...premises].sort(()=>Math.random()-0.5) : [...premises];
