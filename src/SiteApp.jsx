@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import GeoQuizGame from "./games/geo-quiz/GeoQuizGame";
+import RelationalReasoningGame from "./games/relational-reasoning/RelationalReasoningGame";
 
 const GAME_LIBRARY = [
   {
@@ -11,20 +12,13 @@ const GAME_LIBRARY = [
     accent: "#a78bfa",
   },
   {
-    id: "math-sprint",
-    title: "Math Sprint",
-    description: "Fast mental-math rounds with streak scoring.",
-    route: null,
-    status: "Coming Soon",
-    accent: "#34d399",
-  },
-  {
-    id: "word-grid",
-    title: "Word Grid",
-    description: "Find hidden words before time runs out.",
-    route: null,
-    status: "Coming Soon",
-    accent: "#f59e0b",
+    id: "relational-reasoning",
+    title: "Relational Reasoning",
+    description:
+      "SMART-style cognitive training for same/opposite, before/after, and comparison relations.",
+    route: "/games/relational-reasoning",
+    status: "Live",
+    accent: "#3B82F6",
   },
 ];
 
@@ -194,6 +188,7 @@ export default function SiteApp() {
   const screen = useMemo(() => {
     if (route === "/") return <LibraryHome />;
     if (route === "/games/geo-quiz") return <GeoQuizGame />;
+    if (route === "/games/relational-reasoning") return <RelationalReasoningGame />;
     return <NotFound />;
   }, [route]);
 

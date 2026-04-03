@@ -7,7 +7,9 @@ A multi-game web app built with React + Vite, designed for GitHub Pages deployme
 - `src/SiteApp.jsx` - landing page and route selection shell
 - `src/games/` - each game in its own subfolder
   - `src/games/geo-quiz/GeoQuizGame.jsx` - Geo Quiz entry
+  - `src/games/relational-reasoning/RelationalReasoningGame.jsx` - SMART relational trainer entry
 - `src/App.jsx` - current Geo Quiz implementation
+- `public/games/relational-reasoning/index.html` - standalone relational trainer page
 
 ## Run locally
 
@@ -22,6 +24,7 @@ Open the app and choose a game from the landing page.
 
 - `#/` - game library landing page
 - `#/games/geo-quiz` - Geo Quiz
+- `#/games/relational-reasoning` - SMART relational reasoning trainer
 
 Hash routes are used so deep links work on GitHub Pages.
 
