@@ -132,14 +132,9 @@ export default function StreetStoriesManhattan() {
   const [mapboxStatus, setMapboxStatus] = useState("idle");
   const [mapboxModules, setMapboxModules] = useState(null);
   const mapEnabled = Boolean(mapToken) && !mapFailed;
-  const isSafariBrowser =
-    typeof navigator !== "undefined" &&
-    /safari/i.test(navigator.userAgent) &&
-    !/chrome|chromium|edg|opr/i.test(navigator.userAgent);
   const mapSupported =
     typeof window !== "undefined" &&
-    typeof window.WebGLRenderingContext !== "undefined" &&
-    !isSafariBrowser;
+    typeof window.WebGLRenderingContext !== "undefined";
   const mapReady =
     mapEnabled && mapSupported && mapboxStatus === "ready" && Boolean(mapboxModules);
 
@@ -661,8 +656,6 @@ export default function StreetStoriesManhattan() {
                     ? "Mapbox token required"
                     : mapboxStatus === "loading"
                     ? "Loading map engine..."
-                    : isSafariBrowser
-                    ? "Safari compatibility mode"
                     : !mapSupported
                     ? "Map unsupported on this device"
                     : "Map rendering unavailable"}
@@ -672,8 +665,6 @@ export default function StreetStoriesManhattan() {
                     ? "Set "
                     : mapboxStatus === "loading"
                     ? "Preparing interactive map components..."
-                    : isSafariBrowser
-                    ? "Map rendering is temporarily disabled on Safari while we ship a compatibility patch. You can still explore all street stories from the panel."
                     : !mapSupported
                     ? "Your browser does not support WebGL. You can still explore all street stories in the side panel."
                     : "This browser or device cannot initialize the map right now. The story panel remains available while we improve compatibility."}
