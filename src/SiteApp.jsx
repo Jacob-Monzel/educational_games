@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Component, Suspense, lazy, useEffect, useMemo, useState } from "react";
 import GeoQuizGame from "./games/geo-quiz/GeoQuizGame";
 import RelationalReasoningGame from "./games/relational-reasoning/RelationalReasoningGame";
 
@@ -206,6 +206,59 @@ function RouteLoading() {
   );
 }
 
+class RouteErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch() {}
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          background: "#fafaf8",
+          color: "#2c2c2c",
+          fontFamily: "'Source Sans 3', sans-serif",
+          padding: 20,
+        }}
+      >
+        <div style={{ maxWidth: 560, textAlign: "center" }}>
+          <h2 style={{ margin: "0 0 8px", fontFamily: "'Source Serif 4', serif" }}>
+            Street Stories failed to load
+          </h2>
+          <p style={{ margin: "0 0 14px", color: "#6b7280" }}>
+            This route hit a runtime error. Refresh and try again, or return to the library.
+          </p>
+          <a
+            href="#/"
+            style={{
+              display: "inline-block",
+              textDecoration: "none",
+              color: "#2c2c2c",
+              border: "1px solid #d8d2c4",
+              borderRadius: 8,
+              padding: "8px 12px",
+              background: "#fff",
+            }}
+          >
+            Back to game library
+          </a>
+        </div>
+      </main>
+    );
+  }
+}
+
 export default function SiteApp() {
   const [route, setRoute] = useState(getRouteFromHash);
 
@@ -222,7 +275,9 @@ export default function SiteApp() {
     if (route === "/games/street-stories-manhattan") {
       return (
         <Suspense fallback={<RouteLoading />}>
-          <StreetStoriesManhattan />
+          <RouteErrorBoundary>
+            <StreetStoriesManhattan />
+          </RouteErrorBoundary>
         </Suspense>
       );
     }

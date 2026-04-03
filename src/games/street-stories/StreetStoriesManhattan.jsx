@@ -131,6 +131,7 @@ export default function StreetStoriesManhattan() {
   const [matchedCenterlineGeoJson, setMatchedCenterlineGeoJson] = useState(EMPTY_FC);
   const [matchedStreetKeys, setMatchedStreetKeys] = useState(() => new Set());
   const [streetCenters, setStreetCenters] = useState(() => new Map());
+  const [mapFailed, setMapFailed] = useState(false);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 1024);
@@ -510,7 +511,7 @@ export default function StreetStoriesManhattan() {
     <div className="street-stories-root">
       <div className="street-stories-layout">
         <div className="street-map-wrap">
-          {mapToken ? (
+          {mapToken && !mapFailed ? (
             <Map
               ref={mapRef}
               mapLib={mapboxgl}
@@ -524,6 +525,7 @@ export default function StreetStoriesManhattan() {
               interactiveLayerIds={["nta-fill", "matched-lines", "selected-halo", "selected-line"]}
               onMove={(event) => setViewState(event.viewState)}
               onClick={onMapClick}
+              onError={() => setMapFailed(true)}
               className="street-map"
             >
               <Source id="nta-source" type="geojson" data={ntaGeoJson}>
@@ -597,11 +599,14 @@ export default function StreetStoriesManhattan() {
             >
               <div style={{ maxWidth: 520, textAlign: "center" }}>
                 <h3 style={{ marginBottom: 8, fontFamily: "Source Serif 4, serif" }}>
-                  Mapbox token required
+                  {mapToken ? "Map rendering unavailable" : "Mapbox token required"}
                 </h3>
                 <p style={{ margin: 0 }}>
-                  Set <code>VITE_MAPBOX_TOKEN</code> to render the live Manhattan basemap and street
-                  overlays.
+                  {mapToken
+                    ? "This browser or device cannot initialize the map right now. The story panel remains available while we improve compatibility."
+                    : "Set "}
+                  {!mapToken ? <code>VITE_MAPBOX_TOKEN</code> : null}
+                  {!mapToken ? " to render the live Manhattan basemap and street overlays." : null}
                 </p>
               </div>
             </div>
