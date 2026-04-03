@@ -209,14 +209,19 @@ function RouteLoading() {
 class RouteErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, errorMessage: "" };
   }
 
   static getDerivedStateFromError() {
     return { hasError: true };
   }
 
-  componentDidCatch() {}
+  componentDidCatch(error) {
+    this.setState({
+      errorMessage:
+        error?.message || "Unknown runtime error in Street Stories route.",
+    });
+  }
 
   render() {
     if (!this.state.hasError) return this.props.children;
@@ -239,6 +244,24 @@ class RouteErrorBoundary extends Component {
           <p style={{ margin: "0 0 14px", color: "#6b7280" }}>
             This route hit a runtime error. Refresh and try again, or return to the library.
           </p>
+          {this.state.errorMessage ? (
+            <pre
+              style={{
+                margin: "0 0 14px",
+                padding: "10px 12px",
+                border: "1px solid #e5dfd2",
+                borderRadius: 8,
+                background: "#fff",
+                color: "#444",
+                textAlign: "left",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                fontSize: 12,
+              }}
+            >
+              {this.state.errorMessage}
+            </pre>
+          ) : null}
           <a
             href="#/"
             style={{

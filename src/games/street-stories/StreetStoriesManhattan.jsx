@@ -1,7 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Map, { Layer, Marker, Source } from "react-map-gl/mapbox";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
 import "./StreetStoriesManhattan.css";
 import {
   MANHATTAN_VIEW,
@@ -132,15 +129,56 @@ export default function StreetStoriesManhattan() {
   const [matchedStreetKeys, setMatchedStreetKeys] = useState(() => new Set());
   const [streetCenters, setStreetCenters] = useState(() => new Map());
   const [mapFailed, setMapFailed] = useState(false);
+  const [mapboxStatus, setMapboxStatus] = useState("idle");
+  const [mapboxModules, setMapboxModules] = useState(null);
   const mapEnabled = Boolean(mapToken) && !mapFailed;
+  const isSafariBrowser =
+    typeof navigator !== "undefined" &&
+    /safari/i.test(navigator.userAgent) &&
+    !/chrome|chromium|edg|opr/i.test(navigator.userAgent);
   const mapSupported =
-    typeof window !== "undefined" && typeof window.WebGLRenderingContext !== "undefined";
+    typeof window !== "undefined" &&
+    typeof window.WebGLRenderingContext !== "undefined" &&
+    !isSafariBrowser;
+  const mapReady =
+    mapEnabled && mapSupported && mapboxStatus === "ready" && Boolean(mapboxModules);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  useEffect(() => {
+    if (!mapEnabled || !mapSupported) {
+      setMapboxStatus("idle");
+      setMapboxModules(null);
+      return;
+    }
+    let active = true;
+    setMapboxStatus("loading");
+    Promise.all([import("react-map-gl/mapbox"), import("mapbox-gl"), import("mapbox-gl/dist/mapbox-gl.css")])
+      .then(([reactMapGlModule, mapboxGlModule]) => {
+        if (!active) return;
+        setMapboxModules({
+          MapView: reactMapGlModule.default,
+          LayerView: reactMapGlModule.Layer,
+          MarkerView: reactMapGlModule.Marker,
+          SourceView: reactMapGlModule.Source,
+          mapLib: mapboxGlModule.default ?? mapboxGlModule,
+        });
+        setMapboxStatus("ready");
+      })
+      .catch(() => {
+        if (!active) return;
+        setMapboxStatus("error");
+        setMapboxModules(null);
+        setMapFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [mapEnabled, mapSupported]);
 
   useEffect(() => {
     let active = true;
@@ -268,6 +306,10 @@ export default function StreetStoriesManhattan() {
     () => searchStreetGroups(dataset.streetGroups, query),
     [dataset.streetGroups, query]
   );
+  const MapView = mapboxModules?.MapView;
+  const LayerView = mapboxModules?.LayerView;
+  const MarkerView = mapboxModules?.MarkerView;
+  const SourceView = mapboxModules?.SourceView;
 
   const selectedFilter = useMemo(() => {
     if (!selectedStreetKey) return ["==", ["get", "storyStreetKey"], "__none__"];
@@ -526,10 +568,10 @@ export default function StreetStoriesManhattan() {
     <div className="street-stories-root">
       <div className="street-stories-layout">
         <div className="street-map-wrap">
-          {mapEnabled && mapSupported ? (
-            <Map
+          {mapReady && MapView && SourceView && LayerView && MarkerView ? (
+            <MapView
               ref={mapRef}
-              mapLib={mapboxgl}
+              mapLib={mapboxModules.mapLib}
               mapboxAccessToken={mapToken}
               initialViewState={MANHATTAN_VIEW}
               mapStyle="mapbox://styles/mapbox/light-v11"
@@ -543,20 +585,20 @@ export default function StreetStoriesManhattan() {
               onError={() => setMapFailed(true)}
               className="street-map"
             >
-              <Source id="nta-source" type="geojson" data={ntaGeoJson}>
-                <Layer {...NTA_FILL_LAYER} />
-                <Layer {...NTA_OUTLINE_LAYER} />
-              </Source>
+              <SourceView id="nta-source" type="geojson" data={ntaGeoJson}>
+                <LayerView {...NTA_FILL_LAYER} />
+                <LayerView {...NTA_OUTLINE_LAYER} />
+              </SourceView>
 
-              <Source id="matched-lines-source" type="geojson" data={matchedCenterlineGeoJson}>
-                <Layer {...MATCHED_LINE_LAYER} />
-                {selectedStreetKey ? <Layer {...SELECTED_HALO_LAYER} filter={selectedFilter} /> : null}
-                {selectedStreetKey ? <Layer {...SELECTED_LINE_LAYER} filter={selectedFilter} /> : null}
-              </Source>
+              <SourceView id="matched-lines-source" type="geojson" data={matchedCenterlineGeoJson}>
+                <LayerView {...MATCHED_LINE_LAYER} />
+                {selectedStreetKey ? <LayerView {...SELECTED_HALO_LAYER} filter={selectedFilter} /> : null}
+                {selectedStreetKey ? <LayerView {...SELECTED_LINE_LAYER} filter={selectedFilter} /> : null}
+              </SourceView>
 
               {!zoomedIn
                 ? unmatchedClusters.map((cluster) => (
-                    <Marker
+                    <MarkerView
                       key={cluster.neighborhood}
                       longitude={cluster.centroid.lng}
                       latitude={cluster.centroid.lat}
@@ -575,12 +617,12 @@ export default function StreetStoriesManhattan() {
                       >
                         {cluster.count}
                       </button>
-                    </Marker>
+                    </MarkerView>
                   ))
                 : null}
 
               {expandedMarkers.map((marker) => (
-                <Marker
+                <MarkerView
                   key={marker.street.key}
                   longitude={marker.lng}
                   latitude={marker.lat}
@@ -598,9 +640,9 @@ export default function StreetStoriesManhattan() {
                     onClick={() => chooseStreet(marker.street)}
                     title={marker.street.streetName}
                   />
-                </Marker>
+                </MarkerView>
               ))}
-            </Map>
+            </MapView>
           ) : (
             <div
               style={{
@@ -611,11 +653,16 @@ export default function StreetStoriesManhattan() {
                 background: "#f3f0e8",
                 color: "#4b5563",
               }}
+              className="map-unavailable"
             >
               <div style={{ maxWidth: 520, textAlign: "center" }}>
                 <h3 style={{ marginBottom: 8, fontFamily: "Source Serif 4, serif" }}>
                   {!mapToken
                     ? "Mapbox token required"
+                    : mapboxStatus === "loading"
+                    ? "Loading map engine..."
+                    : isSafariBrowser
+                    ? "Safari compatibility mode"
                     : !mapSupported
                     ? "Map unsupported on this device"
                     : "Map rendering unavailable"}
@@ -623,6 +670,10 @@ export default function StreetStoriesManhattan() {
                 <p style={{ margin: 0 }}>
                   {!mapToken
                     ? "Set "
+                    : mapboxStatus === "loading"
+                    ? "Preparing interactive map components..."
+                    : isSafariBrowser
+                    ? "Map rendering is temporarily disabled on Safari while we ship a compatibility patch. You can still explore all street stories from the panel."
                     : !mapSupported
                     ? "Your browser does not support WebGL. You can still explore all street stories in the side panel."
                     : "This browser or device cannot initialize the map right now. The story panel remains available while we improve compatibility."}
@@ -634,14 +685,15 @@ export default function StreetStoriesManhattan() {
           )}
 
           <div className="map-floating-controls">
-            <button type="button" onClick={() => mapRef.current?.zoomIn({ duration: 220 })}>
+            <button type="button" onClick={() => mapRef.current?.zoomIn({ duration: 220 })} disabled={!mapReady}>
               +
             </button>
-            <button type="button" onClick={() => mapRef.current?.zoomOut({ duration: 220 })}>
+            <button type="button" onClick={() => mapRef.current?.zoomOut({ duration: 220 })} disabled={!mapReady}>
               -
             </button>
             <button
               type="button"
+              disabled={!mapReady}
               onClick={() =>
                 mapRef.current?.flyTo({
                   center: [MANHATTAN_VIEW.longitude, MANHATTAN_VIEW.latitude],
@@ -654,7 +706,10 @@ export default function StreetStoriesManhattan() {
             </button>
           </div>
 
-          {(datasetLoading || ntaStatus === "loading" || centerlineStatus === "loading") && (
+          {(datasetLoading ||
+            mapboxStatus === "loading" ||
+            ntaStatus === "loading" ||
+            centerlineStatus === "loading") && (
             <div
               style={{
                 position: "absolute",
@@ -670,6 +725,8 @@ export default function StreetStoriesManhattan() {
             >
               {datasetLoading
                 ? "Loading stories..."
+                : mapboxStatus === "loading"
+                ? "Loading map engine..."
                 : centerlineStatus === "loading"
                 ? "Matching NYC centerlines..."
                 : "Loading neighborhoods..."}
