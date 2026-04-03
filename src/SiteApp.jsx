@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import GeoQuizGame from "./games/geo-quiz/GeoQuizGame";
 import RelationalReasoningGame from "./games/relational-reasoning/RelationalReasoningGame";
-import StreetStoriesManhattan from "./games/street-stories/StreetStoriesManhattan";
+
+const StreetStoriesManhattan = lazy(() =>
+  import("./games/street-stories/StreetStoriesManhattan")
+);
 
 const GAME_LIBRARY = [
   {
@@ -186,6 +189,23 @@ function NotFound() {
   );
 }
 
+function RouteLoading() {
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        background: "#fafaf8",
+        color: "#6B7280",
+        fontFamily: "'Source Sans 3', sans-serif",
+      }}
+    >
+      Loading map experience...
+    </main>
+  );
+}
+
 export default function SiteApp() {
   const [route, setRoute] = useState(getRouteFromHash);
 
@@ -199,7 +219,13 @@ export default function SiteApp() {
     if (route === "/") return <LibraryHome />;
     if (route === "/games/geo-quiz") return <GeoQuizGame />;
     if (route === "/games/relational-reasoning") return <RelationalReasoningGame />;
-    if (route === "/games/street-stories-manhattan") return <StreetStoriesManhattan />;
+    if (route === "/games/street-stories-manhattan") {
+      return (
+        <Suspense fallback={<RouteLoading />}>
+          <StreetStoriesManhattan />
+        </Suspense>
+      );
+    }
     return <NotFound />;
   }, [route]);
 
