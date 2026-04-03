@@ -78,11 +78,6 @@ function LibraryHome() {
           >
             Pick a game
           </h1>
-          <p style={{ margin: 0, color: "#8b8fa3", maxWidth: 720, lineHeight: 1.6 }}>
-            This is your game hub. Tap any live game to launch instantly.
-            <br />
-            Designed to deploy cleanly on GitHub Pages so you can play from your phone.
-          </p>
         </header>
 
         <section
