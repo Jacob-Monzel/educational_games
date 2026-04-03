@@ -567,10 +567,17 @@ export const MANHATTAN_STREET_SEGMENTS = [
     altNames: [],
     formerNames: [],
     origin:
-      "Named for Admiral George Dewey, whose Manila Bay victory in 1898 made him a national hero. The promenade naming came later, in 1965.",
-    timeline: ["1899: Hero's welcome in New York.", "1965: Promenade named in his honor."],
+      "Named for Admiral George Dewey (1837-1917), whose 1898 Manila Bay victory in the Spanish-American War made him a national hero and cemented U.S. Pacific power.",
+    timeline: [
+      "1898: Dewey's Manila Bay command ('You may fire when you are ready, Gridley').",
+      "1899: Hero's welcome in New York.",
+      "1965: Promenade named in his honor.",
+    ],
     confidence: "high",
-    sources: [{ label: "The Street Book (Henry Moscow), p. 25" }],
+    sources: [
+      { label: "The Street Book (Henry Moscow), p. 25" },
+      { label: "Naming New York (Sanna Feirstein)" },
+    ],
     coordinates: [
       [-74.0175, 40.7044],
       [-74.0168, 40.7048],
@@ -588,9 +595,16 @@ export const MANHATTAN_STREET_SEGMENTS = [
     formerNames: [],
     origin:
       "Named for a Hudson-side pier built in 1797 serving New York-Albany traffic. A long 19th-century effort to extend the street through Trinity Churchyard was never carried out.",
-    timeline: ["1797: Street tied to Albany-run pier.", "1850s: Extension controversy ends without completion."],
+    timeline: [
+      "1797: Street tied to Albany-run pier.",
+      "19th century: Hudson boats on the New York-Albany run docked nearby.",
+      "1850s: Extension controversy ends without completion.",
+    ],
     confidence: "medium",
-    sources: [{ label: "The Street Book (Henry Moscow), p. 25" }],
+    sources: [
+      { label: "The Street Book (Henry Moscow), p. 25" },
+      { label: "Naming New York (Sanna Feirstein)" },
+    ],
     coordinates: [
       [-74.0154, 40.7094],
       [-74.0128, 40.7095],
@@ -881,9 +895,12 @@ export const MANHATTAN_STREET_SEGMENTS = [
     formerNames: [],
     origin:
       "Named for Reverend Henry Barclay, Trinity Church's second rector (from 1746), reflecting Trinity's major influence in lower Manhattan street naming.",
-    timeline: ["1746: Barclay becomes Trinity rector."],
+    timeline: ["1746-1764: Barclay serves as Trinity's second rector."],
     confidence: "high",
-    sources: [{ label: "The Street Book (Henry Moscow), p. 29" }],
+    sources: [
+      { label: "The Street Book (Henry Moscow), p. 29" },
+      { label: "Naming New York (Sanna Feirstein)" },
+    ],
     coordinates: [
       [-74.0117, 40.7126],
       [-74.0088, 40.7129],
@@ -931,16 +948,24 @@ export const MANHATTAN_STREET_SEGMENTS = [
   {
     id: "battery-place",
     corridor: "Battery Historic Waterfront",
-    currentName: "Battery Place",
-    segmentLabel: "Battery Park edge",
+    currentName: "Battery Place / Merchant Marine Veterans' Place",
+    segmentLabel: "Battery Park edge co-named segment",
     bounds: "Battery Park area",
-    altNames: [],
+    altNames: ["Battery Place"],
     formerNames: [],
     origin:
-      "Named for an artillery battery installed in 1693 as part of colonial defenses against a feared French attack; the site remained militarily important through the War of 1812.",
-    timeline: ["1693: Artillery battery established.", "War of 1812 era: Continued strategic role."],
+      "Named for an artillery battery installed in 1693 as part of colonial defenses against a feared French attack; the site remained militarily important through the War of 1812 and is now also co-named to honor Merchant Marine veterans.",
+    timeline: [
+      "Circa 1683: British gun batteries established at Manhattan's southern tip.",
+      "1693: Artillery battery established (alternate dated account).",
+      "War of 1812 era: Continued strategic role.",
+      "Modern era: Co-named Merchant Marine Veterans' Place.",
+    ],
     confidence: "high",
-    sources: [{ label: "The Street Book (Henry Moscow), p. 30" }],
+    sources: [
+      { label: "The Street Book (Henry Moscow), p. 30" },
+      { label: "Naming New York (Sanna Feirstein)" },
+    ],
     coordinates: [
       [-74.0178, 40.7043],
       [-74.0159, 40.7048],
@@ -1321,9 +1346,15 @@ export const MANHATTAN_STREET_SEGMENTS = [
     formerNames: [],
     origin:
       "Named for the beaver-centered fur trade economy of early New York, when pelts functioned as a major store of value.",
-    timeline: ["17th century: Fur trade prominence in colonial New York."],
+    timeline: [
+      "17th century: Dutch-era fur trade economy centered on beaver pelts.",
+      "19th century: Fur-trade legacy persisted through major merchants including Astor.",
+    ],
     confidence: "high",
-    sources: [{ label: "The Street Book (Henry Moscow), p. 30 (batch cite: 2170-2171)" }],
+    sources: [
+      { label: "The Street Book (Henry Moscow), p. 30" },
+      { label: "Naming New York (Sanna Feirstein)" },
+    ],
     coordinates: [
       [-74.011, 40.7058],
       [-74.0088, 40.7061],
@@ -1531,10 +1562,13 @@ export const MANHATTAN_STREET_SEGMENTS = [
     altNames: [],
     formerNames: [],
     origin:
-      "Named for a fenced bowling field leased in 1732 to leading colonial figures; rent was the famous token payment of one peppercorn per year.",
-    timeline: ["1732: Leased for private bowling green use."],
+      "New York City's oldest park area, first used as parade ground and cattle market before being leased in the 1730s as a formal bowling green.",
+    timeline: ["17th century: Parade-ground/cattle-market uses.", "1732-1733: Leased as bowling green for a token peppercorn rent."],
     confidence: "high",
-    sources: [{ label: "The Street Book (Henry Moscow), p. 30 (batch cite: 2267-2268)" }],
+    sources: [
+      { label: "The Street Book (Henry Moscow), p. 30" },
+      { label: "Naming New York (Sanna Feirstein)" },
+    ],
     coordinates: [
       [-74.0138, 40.7046],
       [-74.0128, 40.7049],
@@ -1569,12 +1603,15 @@ export const MANHATTAN_STREET_SEGMENTS = [
     segmentLabel: "Old Broad Canal crossing line",
     bounds: "Historic crossing of Broad Street",
     altNames: [],
-    formerNames: [],
+    formerNames: ["Brugh Street"],
     origin:
       "Named for a bridge that once crossed Broad Street when Broad was still a tidal canal (the Broad Canal).",
     timeline: ["17th century: Canal-crossing bridge era."],
     confidence: "high",
-    sources: [{ label: "The Street Book (Henry Moscow), p. 30 (batch cite: 2276)" }],
+    sources: [
+      { label: "The Street Book (Henry Moscow), p. 30" },
+      { label: "Naming New York (Sanna Feirstein)" },
+    ],
     coordinates: [
       [-74.0108, 40.7069],
       [-74.0092, 40.7072],
@@ -1590,10 +1627,13 @@ export const MANHATTAN_STREET_SEGMENTS = [
     altNames: [],
     formerNames: ["Broad Canal (waterway predecessor)"],
     origin:
-      "Named for the Broad Canal that once occupied the corridor before being filled in 1676.",
-    timeline: ["1676: Broad Canal filled, paving the way for street alignment."],
+      "Named for the broad canalized corridor that once ran here, with roads on either side used for ship access and cargo handling before being consolidated into one broad thoroughfare.",
+    timeline: ["Mid-17th century: Canal-side roadway system in use.", "1676: Broad Canal filled, joining side roads into one street."],
     confidence: "high",
-    sources: [{ label: "The Street Book (Henry Moscow), p. 30 (batch cite: 2289-2290)" }],
+    sources: [
+      { label: "The Street Book (Henry Moscow), p. 30" },
+      { label: "Naming New York (Sanna Feirstein)" },
+    ],
     coordinates: [
       [-74.0112, 40.7044],
       [-74.0104, 40.7085],
@@ -5493,6 +5533,25 @@ export const MANHATTAN_STREET_SEGMENTS = [
       [-73.9445, 40.7756],
       [-73.9433, 40.7838],
       [-73.9421, 40.7921],
+    ],
+  },
+  {
+    id: "ari-halberstam-memorial-ramp",
+    corridor: "Brooklyn Bridge Approach Memorials",
+    currentName: "Ari Halberstam Memorial Ramp",
+    segmentLabel: "FDR Drive to Brooklyn Bridge approach",
+    bounds: "Approach from FDR Drive to Brooklyn Bridge",
+    altNames: [],
+    formerNames: [],
+    origin:
+      "Named in 1995 for Ari Halberstam, who was fatally shot in 1994 while returning from a prayer vigil. The naming memorialized both the victim and a major hate-crime moment in city memory.",
+    timeline: ["1994: Fatal shooting on bridge approach.", "1995: Memorial ramp naming."],
+    confidence: "high",
+    sources: [{ label: "Naming New York (Sanna Feirstein)" }],
+    coordinates: [
+      [-73.9898, 40.7116],
+      [-73.9885, 40.7128],
+      [-73.9872, 40.7142],
     ],
   },
 ];
