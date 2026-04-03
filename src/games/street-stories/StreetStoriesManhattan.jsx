@@ -1,469 +1,779 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import * as d3 from "d3";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Map, { Layer, Marker, Source } from "react-map-gl/mapbox";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import "./StreetStoriesManhattan.css";
 import {
-  CONFIDENCE_COLORS,
-  MANHATTAN_ISLAND,
-  MANHATTAN_STREET_SEGMENTS,
-} from "./manhattanData";
+  MANHATTAN_VIEW,
+  NYC_BOUNDS,
+  UI_COLORS,
+  colorForNeighborhood,
+  neighborhoodCentroid,
+} from "./storyMapConstants";
+import {
+  confidenceVisual,
+  loadStreetStoryDataset,
+  markerColorByConfidence,
+} from "./streetStoriesData";
+import {
+  fetchManhattanCenterlines,
+  fetchNtaManhattanGeoJson,
+  markerSpiral,
+  matchStreetGroupsToCenterlines,
+  searchStreetGroups,
+} from "./storyMapDataUtils";
 
-function confidenceLabel(level) {
-  if (!level) return "Unknown";
-  return level.charAt(0).toUpperCase() + level.slice(1);
+const EMPTY_FC = { type: "FeatureCollection", features: [] };
+
+const NTA_FILL_LAYER = {
+  id: "nta-fill",
+  type: "fill",
+  paint: {
+    "fill-color": ["coalesce", ["get", "storyColor"], "#D1D5DB"],
+    "fill-opacity": 0.13,
+  },
+};
+
+const NTA_OUTLINE_LAYER = {
+  id: "nta-outline",
+  type: "line",
+  paint: {
+    "line-color": "#d2cec3",
+    "line-width": 1.1,
+    "line-opacity": 0.5,
+  },
+};
+
+const MATCHED_LINE_LAYER = {
+  id: "matched-lines",
+  type: "line",
+  paint: {
+    "line-color": ["coalesce", ["get", "storyColor"], UI_COLORS.roadMuted],
+    "line-opacity": ["interpolate", ["linear"], ["zoom"], 11, 0.16, 14, 0.62],
+    "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.2, 14, 2.8],
+  },
+};
+
+const SELECTED_HALO_LAYER = {
+  id: "selected-halo",
+  type: "line",
+  paint: {
+    "line-color": "#fffaf1",
+    "line-opacity": 0.96,
+    "line-width": 8,
+    "line-blur": 0.6,
+  },
+};
+
+const SELECTED_LINE_LAYER = {
+  id: "selected-line",
+  type: "line",
+  paint: {
+    "line-color": ["coalesce", ["get", "storyColor"], "#6b7280"],
+    "line-opacity": 1,
+    "line-width": 4.2,
+  },
+};
+
+function sourceInitials(sourceId) {
+  return sourceId
+    .split("-")
+    .map((token) => token.charAt(0))
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function dedupeBy(items, keyFn) {
+  const seen = new Set();
+  const result = [];
+  for (const item of items) {
+    const key = keyFn(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
 }
 
 export default function StreetStoriesManhattan() {
-  const containerRef = useRef(null);
-  const svgRef = useRef(null);
-  const gRef = useRef(null);
-  const zoomRef = useRef(null);
+  const mapRef = useRef(null);
+  const touchStartRef = useRef(null);
 
-  const [selectedId, setSelectedId] = useState(MANHATTAN_STREET_SEGMENTS[0].id);
-  const [hoveredId, setHoveredId] = useState(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
+  const mapToken = import.meta.env.VITE_MAPBOX_TOKEN || "";
+
   const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth <= 980 : false
+    typeof window !== "undefined" ? window.innerWidth < 1024 : false
   );
+  const [viewState, setViewState] = useState(MANHATTAN_VIEW);
+  const [query, setQuery] = useState("");
+  const [selectedNeighborhood, setSelectedNeighborhood] = useState(null);
+  const [selectedStreetKey, setSelectedStreetKey] = useState(null);
+  const [mobileSheetPinned, setMobileSheetPinned] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
 
-  const selectedSegment = useMemo(
-    () =>
-      MANHATTAN_STREET_SEGMENTS.find((segment) => segment.id === selectedId) ||
-      MANHATTAN_STREET_SEGMENTS[0],
-    [selectedId]
-  );
+  const [dataset, setDataset] = useState({
+    loadedSources: [],
+    sourceEntries: [],
+    streetGroups: [],
+    stats: {
+      totalSegments: 0,
+      uniqueStreets: 0,
+      neighborhoodsCovered: 0,
+      sourcesLoaded: 0,
+    },
+  });
+  const [datasetLoading, setDatasetLoading] = useState(true);
 
-  const featureCollection = useMemo(
-    () => ({
-      type: "FeatureCollection",
-      features: [
-        MANHATTAN_ISLAND,
-        ...MANHATTAN_STREET_SEGMENTS.map((segment) => ({
-          type: "Feature",
-          id: segment.id,
-          properties: segment,
-          geometry: { type: "LineString", coordinates: segment.coordinates },
-        })),
-      ],
-    }),
-    []
-  );
-
-  const projection = useMemo(() => {
-    if (!size.width || !size.height) return null;
-    return d3
-      .geoMercator()
-      .fitExtent(
-        [
-          [24, 24],
-          [size.width - 24, size.height - 24],
-        ],
-        featureCollection
-      );
-  }, [featureCollection, size.height, size.width]);
-
-  const pathFn = useMemo(
-    () => (projection ? d3.geoPath(projection) : null),
-    [projection]
-  );
+  const [ntaGeoJson, setNtaGeoJson] = useState(EMPTY_FC);
+  const [ntaStatus, setNtaStatus] = useState("idle");
+  const [centerlineStatus, setCenterlineStatus] = useState("idle");
+  const [matchedCenterlineGeoJson, setMatchedCenterlineGeoJson] = useState(EMPTY_FC);
+  const [matchedStreetKeys, setMatchedStreetKeys] = useState(() => new Set());
+  const [streetCenters, setStreetCenters] = useState(() => new Map());
 
   useEffect(() => {
-    if (!containerRef.current) return undefined;
-    const observer = new ResizeObserver((entries) => {
-      const next = entries[0].contentRect;
-      setSize({ width: next.width, height: next.height });
-    });
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth <= 980);
+    const onResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
   useEffect(() => {
-    if (!svgRef.current || !gRef.current) return undefined;
-    const svg = d3.select(svgRef.current);
-    const zoom = d3
-      .zoom()
-      .scaleExtent([1, 16])
-      .on("zoom", (event) => d3.select(gRef.current).attr("transform", event.transform));
-    svg.call(zoom);
-    zoomRef.current = { svg, zoom };
+    let active = true;
+    setDatasetLoading(true);
+    loadStreetStoryDataset()
+      .then((next) => {
+        if (!active) return;
+        setDataset(next);
+      })
+      .finally(() => {
+        if (active) setDatasetLoading(false);
+      });
     return () => {
-      svg.on(".zoom", null);
+      active = false;
     };
   }, []);
 
-  const zoomIn = () => {
-    if (!zoomRef.current) return;
-    zoomRef.current.svg.transition().duration(220).call(zoomRef.current.zoom.scaleBy, 1.4);
-  };
+  useEffect(() => {
+    let active = true;
+    setNtaStatus("loading");
+    fetchNtaManhattanGeoJson()
+      .then((next) => {
+        if (!active) return;
+        setNtaGeoJson(next);
+        setNtaStatus("ready");
+      })
+      .catch(() => {
+        if (!active) return;
+        setNtaGeoJson(EMPTY_FC);
+        setNtaStatus("error");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  const zoomOut = () => {
-    if (!zoomRef.current) return;
-    zoomRef.current.svg.transition().duration(220).call(zoomRef.current.zoom.scaleBy, 0.72);
-  };
+  useEffect(() => {
+    if (!dataset.streetGroups.length) return;
+    let active = true;
+    setCenterlineStatus("loading");
+    fetchManhattanCenterlines()
+      .then((centerlineGeoJson) => {
+        if (!active) return;
+        const matchResult = matchStreetGroupsToCenterlines(
+          dataset.streetGroups,
+          centerlineGeoJson
+        );
+        setMatchedCenterlineGeoJson(matchResult.featureCollection);
+        setMatchedStreetKeys(matchResult.matchedStreetKeys);
+        setStreetCenters(matchResult.streetCenter);
+        setCenterlineStatus("ready");
+      })
+      .catch(() => {
+        if (!active) return;
+        setMatchedCenterlineGeoJson(EMPTY_FC);
+        setMatchedStreetKeys(new Set());
+        setStreetCenters(new Map());
+        setCenterlineStatus("error");
+      });
+    return () => {
+      active = false;
+    };
+  }, [dataset.streetGroups]);
 
-  const zoomReset = () => {
-    if (!zoomRef.current) return;
-    zoomRef.current.svg
-      .transition()
-      .duration(280)
-      .call(zoomRef.current.zoom.transform, d3.zoomIdentity);
-  };
+  const streetByKey = useMemo(
+    () => new Map(dataset.streetGroups.map((group) => [group.key, group])),
+    [dataset.streetGroups]
+  );
+  const selectedStreet = selectedStreetKey ? streetByKey.get(selectedStreetKey) ?? null : null;
+  const effectiveNeighborhood = selectedStreet?.neighborhood ?? selectedNeighborhood;
+  const zoomedIn = viewState.zoom >= 13;
 
-  const jumpToRandom = () => {
-    const next =
-      MANHATTAN_STREET_SEGMENTS[
-        Math.floor(Math.random() * MANHATTAN_STREET_SEGMENTS.length)
-      ];
-    setSelectedId(next.id);
+  const unmatchedGroups = useMemo(
+    () => dataset.streetGroups.filter((group) => !matchedStreetKeys.has(group.key)),
+    [dataset.streetGroups, matchedStreetKeys]
+  );
+
+  const unmatchedClusters = useMemo(() => {
+    const grouped = new Map();
+    for (const street of unmatchedGroups) {
+      if (!grouped.has(street.neighborhood)) {
+        const centroid = neighborhoodCentroid(street.neighborhood);
+        grouped.set(street.neighborhood, {
+          neighborhood: street.neighborhood,
+          centroid,
+          count: 0,
+          color: colorForNeighborhood(street.neighborhood),
+        });
+      }
+      grouped.get(street.neighborhood).count += 1;
+    }
+    return Array.from(grouped.values());
+  }, [unmatchedGroups]);
+
+  const expandedMarkers = useMemo(() => {
+    if (!zoomedIn || !effectiveNeighborhood) return [];
+    const streets = unmatchedGroups.filter((group) => group.neighborhood === effectiveNeighborhood);
+    const center = neighborhoodCentroid(effectiveNeighborhood);
+    return streets.map((street, index) => ({
+      street,
+      ...markerSpiral(index, center),
+    }));
+  }, [effectiveNeighborhood, unmatchedGroups, zoomedIn]);
+
+  const neighborhoodStreetList = useMemo(() => {
+    if (!effectiveNeighborhood) return [];
+    return dataset.streetGroups
+      .filter((street) => street.neighborhood === effectiveNeighborhood)
+      .sort((a, b) => a.streetName.localeCompare(b.streetName));
+  }, [dataset.streetGroups, effectiveNeighborhood]);
+
+  const searchResults = useMemo(
+    () => searchStreetGroups(dataset.streetGroups, query),
+    [dataset.streetGroups, query]
+  );
+
+  const selectedFilter = useMemo(() => {
+    if (!selectedStreetKey) return ["==", ["get", "storyStreetKey"], "__none__"];
+    return ["==", ["get", "storyStreetKey"], selectedStreetKey];
+  }, [selectedStreetKey]);
+
+  const mapFlyTo = useCallback((lng, lat, zoom = 14.2) => {
+    if (!mapRef.current) return;
+    mapRef.current.flyTo({
+      center: [lng, lat],
+      zoom,
+      duration: 1500,
+      essential: true,
+    });
+  }, []);
+
+  const chooseStreet = useCallback(
+    (street, options = { fly: true }) => {
+      if (!street) return;
+      setSelectedStreetKey(street.key);
+      setSelectedNeighborhood(street.neighborhood);
+      if (isMobile) setMobileSheetPinned(true);
+      if (!options.fly) return;
+
+      const center = streetCenters.get(street.key) ?? [street.centroid.lng, street.centroid.lat];
+      mapFlyTo(center[0], center[1], 14.3);
+    },
+    [isMobile, mapFlyTo, streetCenters]
+  );
+
+  const jumpToRandom = useCallback(() => {
+    const candidates = dataset.streetGroups.filter((group) =>
+      group.sourceEntries.some((entry) => !entry.isStub)
+    );
+    if (!candidates.length) return;
+    const street = candidates[Math.floor(Math.random() * candidates.length)];
+    chooseStreet(street);
+  }, [chooseStreet, dataset.streetGroups]);
+
+  const flyToNeighborhood = useCallback(
+    (neighborhood, zoom = 13.25) => {
+      const centroid = neighborhoodCentroid(neighborhood);
+      mapFlyTo(centroid.lng, centroid.lat, zoom);
+    },
+    [mapFlyTo]
+  );
+
+  const onMapClick = useCallback(
+    (event) => {
+      const feature = event.features?.[0];
+      if (!feature) {
+        setSelectedStreetKey(null);
+        return;
+      }
+
+      const layerId = feature.layer?.id;
+      if (layerId === "matched-lines" || layerId === "selected-halo" || layerId === "selected-line") {
+        const key = feature.properties?.storyStreetKey;
+        if (key && streetByKey.has(key)) chooseStreet(streetByKey.get(key), { fly: false });
+        return;
+      }
+      if (layerId === "nta-fill") {
+        const neighborhood = feature.properties?.storyNeighborhood ?? feature.properties?.ntaname;
+        if (neighborhood) {
+          setSelectedNeighborhood(neighborhood);
+          setSelectedStreetKey(null);
+          if (isMobile) setMobileSheetPinned(true);
+          flyToNeighborhood(neighborhood, 13.1);
+        }
+        return;
+      }
+      setSelectedStreetKey(null);
+    },
+    [chooseStreet, flyToNeighborhood, isMobile, streetByKey]
+  );
+
+  const clearSelections = useCallback(() => {
+    setSelectedStreetKey(null);
+    setSelectedNeighborhood(null);
+  }, []);
+
+  const expandedByState =
+    mobileSheetPinned || Boolean(query) || Boolean(selectedStreetKey) || Boolean(selectedNeighborhood);
+  const mobileSheetExpanded = !isMobile || expandedByState;
+
+  const sheetTouchStart = useCallback((event) => {
+    touchStartRef.current = event.touches[0].clientY;
+  }, []);
+
+  const sheetTouchMove = useCallback((event) => {
+    if (touchStartRef.current == null) return;
+    const delta = event.touches[0].clientY - touchStartRef.current;
+    setDragOffset(Math.max(0, Math.min(160, delta)));
+  }, []);
+
+  const sheetTouchEnd = useCallback(() => {
+    if (dragOffset > 90) {
+      setMobileSheetPinned(false);
+      setQuery("");
+      clearSelections();
+    }
+    setDragOffset(0);
+    touchStartRef.current = null;
+  }, [clearSelections, dragOffset]);
+
+  const renderPanelBody = () => {
+    if (selectedStreet) {
+      const confidence = confidenceVisual(selectedStreet.confidenceScore);
+      return (
+        <div>
+          <div className="story-card-label">{selectedStreet.roadType}</div>
+          <h3 className="story-card-title">{selectedStreet.streetName}</h3>
+          {selectedStreet.bounds ? <div className="story-card-meta">{selectedStreet.bounds}</div> : null}
+          <span
+            className="confidence-pill"
+            style={{ background: confidence.bg, color: confidence.text, borderColor: confidence.border }}
+          >
+            {confidence.label}
+          </span>
+
+          {selectedStreet.sourceEntries.map((entry) => (
+            <section key={entry.sourceEntryId} className="story-source-section">
+              <h4 className="story-source-title">{entry.sourceLabel}</h4>
+              <p className="story-origin">{entry.origin || "Origin story unavailable in this source."}</p>
+              {entry.isStub ? (
+                <div className="story-muted-note">
+                  Extracted text is incomplete for this source entry. Refer to the original citation/book
+                  page for the full passage.
+                </div>
+              ) : null}
+
+              {entry.altNames?.length ? (
+                <div className="story-tags">
+                  {entry.altNames.map((item) => (
+                    <span className="story-tag" key={`${entry.sourceEntryId}-alt-${item}`}>
+                      Alt: {item}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              {entry.formerNames?.length ? (
+                <div className="story-tags">
+                  {entry.formerNames.map((item) => (
+                    <span className="story-tag" key={`${entry.sourceEntryId}-former-${item}`}>
+                      Historic: {item}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              {entry.timeline?.length ? (
+                <div className="story-tags">
+                  {entry.timeline.map((item) => (
+                    <span className="story-tag" key={`${entry.sourceEntryId}-time-${item}`}>
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="citation-block">
+                <div>{entry.sourceCitation.label}</div>
+                {entry.sourceCitation.page ? <div>Page: {entry.sourceCitation.page}</div> : null}
+                {entry.sourceCitation.url ? (
+                  <div>
+                    <a href={entry.sourceCitation.url} target="_blank" rel="noreferrer">
+                      {entry.sourceCitation.url}
+                    </a>
+                  </div>
+                ) : null}
+                {entry.sourceCitation.references?.length ? (
+                  <div>
+                    {entry.sourceCitation.references.map((reference) => reference.label).join(" • ")}
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ))}
+        </div>
+      );
+    }
+
+    if (effectiveNeighborhood) {
+      return (
+        <div>
+          <div className="street-neighborhood-heading">
+            <h3>{effectiveNeighborhood}</h3>
+            <p>{neighborhoodStreetList.length} streets</p>
+          </div>
+          <ul className="street-list">
+            {neighborhoodStreetList.map((street) => {
+              const sourceBadges = dedupeBy(street.sourceEntries, (entry) => entry.sourceId);
+              return (
+                <li key={street.key}>
+                  <button type="button" onClick={() => chooseStreet(street)}>
+                    <div className="row">
+                      <strong>{street.streetName}</strong>
+                      <span
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: 999,
+                          background: markerColorByConfidence(street.confidenceScore),
+                        }}
+                      />
+                    </div>
+                    <div className="row" style={{ marginTop: 6 }}>
+                      <span className="road-pill">{street.roadType}</span>
+                      <span className="source-badges">
+                        {sourceBadges.map((source) => (
+                          <span className="source-badge" key={`${street.key}-${source.sourceId}`}>
+                            {sourceInitials(source.sourceId)}
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <p className="street-panel-subtitle">
+          A living editorial atlas of how Manhattan streets got their names, grouped across multiple
+          historical sources.
+        </p>
+        <div className="street-stats-grid">
+          <div className="street-stat-card">
+            <div className="label">Total segments</div>
+            <div className="value">{dataset.stats.totalSegments}</div>
+          </div>
+          <div className="street-stat-card">
+            <div className="label">Unique streets</div>
+            <div className="value">{dataset.stats.uniqueStreets}</div>
+          </div>
+          <div className="street-stat-card">
+            <div className="label">Neighborhoods</div>
+            <div className="value">{dataset.stats.neighborhoodsCovered}</div>
+          </div>
+          <div className="street-stat-card">
+            <div className="label">Sources loaded</div>
+            <div className="value">{dataset.stats.sourcesLoaded}</div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        background:
-          "radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 36%), #0b101a",
-        color: "#e2e8f0",
-        fontFamily: "'Courier New',monospace",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 1320,
-          margin: "0 auto",
-          padding: "max(env(safe-area-inset-top), 16px) 16px max(env(safe-area-inset-bottom), 18px)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: isMobile ? "flex-start" : "center",
-            flexDirection: isMobile ? "column" : "row",
-            gap: 12,
-            marginBottom: 14,
-          }}
-        >
-          <div>
-            <a
-              href="#/"
-              style={{
-                color: "#93c5fd",
-                textDecoration: "none",
-                fontSize: 12,
-                letterSpacing: 0.4,
-                display: "inline-block",
-                marginBottom: 8,
-              }}
+    <div className="street-stories-root">
+      <div className="street-stories-layout">
+        <div className="street-map-wrap">
+          {mapToken ? (
+            <Map
+              ref={mapRef}
+              mapLib={mapboxgl}
+              mapboxAccessToken={mapToken}
+              initialViewState={MANHATTAN_VIEW}
+              mapStyle="mapbox://styles/mapbox/light-v11"
+              attributionControl={false}
+              maxBounds={NYC_BOUNDS}
+              minZoom={10}
+              maxZoom={17}
+              interactiveLayerIds={["nta-fill", "matched-lines", "selected-halo", "selected-line"]}
+              onMove={(event) => setViewState(event.viewState)}
+              onClick={onMapClick}
+              className="street-map"
             >
-              {"<- Back to library"}
-            </a>
-            <h1
-              style={{
-                margin: 0,
-                fontFamily: "Georgia,serif",
-                fontSize: "clamp(24px, 3.5vw, 38px)",
-                lineHeight: 1.1,
-                letterSpacing: -0.5,
-              }}
-            >
-              Street Stories: Manhattan
-            </h1>
-            <p style={{ margin: "8px 0 0", color: "#94a3b8", fontSize: 13, maxWidth: 720 }}>
-              Click a highlighted street segment to explore naming origins, old names, and
-              citations. This is a curated MVP and designed to improve as new sources are added.
-            </p>
-          </div>
-          <button
-            onClick={jumpToRandom}
-            style={{
-              border: "1px solid #334155",
-              background: "rgba(15, 23, 42, 0.7)",
-              color: "#cbd5e1",
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
-          >
-            Random segment
-          </button>
-        </div>
+              <Source id="nta-source" type="geojson" data={ntaGeoJson}>
+                <Layer {...NTA_FILL_LAYER} />
+                <Layer {...NTA_OUTLINE_LAYER} />
+              </Source>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "1.75fr 1fr",
-            gap: 12,
-            alignItems: "stretch",
-          }}
-        >
-          <div
-            style={{
-              border: "1px solid #1f2937",
-              borderRadius: 14,
-              overflow: "hidden",
-              background: "#0b1220",
-              minHeight: isMobile ? 420 : 700,
-              position: "relative",
-            }}
-          >
+              <Source id="matched-lines-source" type="geojson" data={matchedCenterlineGeoJson}>
+                <Layer {...MATCHED_LINE_LAYER} />
+                {selectedStreetKey ? <Layer {...SELECTED_HALO_LAYER} filter={selectedFilter} /> : null}
+                {selectedStreetKey ? <Layer {...SELECTED_LINE_LAYER} filter={selectedFilter} /> : null}
+              </Source>
+
+              {!zoomedIn
+                ? unmatchedClusters.map((cluster) => (
+                    <Marker
+                      key={cluster.neighborhood}
+                      longitude={cluster.centroid.lng}
+                      latitude={cluster.centroid.lat}
+                      anchor="center"
+                    >
+                      <button
+                        type="button"
+                        className="street-marker-cluster"
+                        onClick={() => {
+                          setSelectedNeighborhood(cluster.neighborhood);
+                          flyToNeighborhood(cluster.neighborhood, 13.2);
+                          if (isMobile) setMobileSheetPinned(true);
+                        }}
+                        style={{ borderColor: `${cluster.color}99` }}
+                        title={`${cluster.neighborhood}: ${cluster.count} unmatched`}
+                      >
+                        {cluster.count}
+                      </button>
+                    </Marker>
+                  ))
+                : null}
+
+              {expandedMarkers.map((marker) => (
+                <Marker
+                  key={marker.street.key}
+                  longitude={marker.lng}
+                  latitude={marker.lat}
+                  anchor="center"
+                >
+                  <button
+                    type="button"
+                    className="street-marker-dot"
+                    style={{
+                      background: markerColorByConfidence(marker.street.confidenceScore),
+                      borderColor:
+                        selectedStreetKey === marker.street.key ? "rgba(255,255,255,0.95)" : "rgba(44,44,44,0.25)",
+                      transform: selectedStreetKey === marker.street.key ? "scale(1.25)" : "scale(1)",
+                    }}
+                    onClick={() => chooseStreet(marker.street)}
+                    title={marker.street.streetName}
+                  />
+                </Marker>
+              ))}
+            </Map>
+          ) : (
             <div
-              ref={containerRef}
               style={{
-                width: "100%",
                 height: "100%",
-                minHeight: isMobile ? 420 : 700,
-                position: "relative",
+                display: "grid",
+                placeItems: "center",
+                padding: 24,
+                background: "#f3f0e8",
+                color: "#4b5563",
               }}
             >
-              <svg
-                ref={svgRef}
-                width={size.width || "100%"}
-                height={size.height || "100%"}
-                style={{ width: "100%", height: "100%", display: "block", touchAction: "none" }}
-              >
-                <rect width="100%" height="100%" fill="#0a1222" />
-                {pathFn && (
-                  <g ref={gRef}>
-                    <path d={pathFn(MANHATTAN_ISLAND)} fill="#121f35" stroke="#1e293b" strokeWidth={1.2} />
-                    {MANHATTAN_STREET_SEGMENTS.map((segment) => {
-                      const isSelected = selectedId === segment.id;
-                      const isHovered = hoveredId === segment.id;
-                      const color = isSelected ? "#60a5fa" : isHovered ? "#93c5fd" : "#475569";
-                      return (
-                        <path
-                          key={segment.id}
-                          d={pathFn({
-                            type: "Feature",
-                            geometry: { type: "LineString", coordinates: segment.coordinates },
-                          })}
-                          fill="none"
-                          stroke={color}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={isSelected ? 4.6 : isHovered ? 3.4 : 2.1}
-                          style={{ cursor: "pointer", transition: "all 140ms ease" }}
-                          onMouseEnter={() => setHoveredId(segment.id)}
-                          onMouseLeave={() => setHoveredId(null)}
-                          onClick={() => setSelectedId(segment.id)}
-                        />
-                      );
-                    })}
-                  </g>
-                )}
-              </svg>
+              <div style={{ maxWidth: 520, textAlign: "center" }}>
+                <h3 style={{ marginBottom: 8, fontFamily: "Source Serif 4, serif" }}>
+                  Mapbox token required
+                </h3>
+                <p style={{ margin: 0 }}>
+                  Set <code>VITE_MAPBOX_TOKEN</code> to render the live Manhattan basemap and street
+                  overlays.
+                </p>
+              </div>
             </div>
+          )}
 
+          <div className="map-floating-controls">
+            <button type="button" onClick={() => mapRef.current?.zoomIn({ duration: 220 })}>
+              +
+            </button>
+            <button type="button" onClick={() => mapRef.current?.zoomOut({ duration: 220 })}>
+              -
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                mapRef.current?.flyTo({
+                  center: [MANHATTAN_VIEW.longitude, MANHATTAN_VIEW.latitude],
+                  zoom: MANHATTAN_VIEW.zoom,
+                  duration: 500,
+                })
+              }
+            >
+              NYC
+            </button>
+          </div>
+
+          {(datasetLoading || ntaStatus === "loading" || centerlineStatus === "loading") && (
             <div
               style={{
                 position: "absolute",
-                right: 12,
-                bottom: 12,
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
+                left: 14,
+                top: 14,
+                zIndex: 6,
+                fontSize: 12,
+                background: "rgba(255,255,255,0.88)",
+                border: "1px solid #ddd9cf",
+                borderRadius: 8,
+                padding: "7px 10px",
               }}
             >
-              {[
-                { id: "in", label: "+", action: zoomIn },
-                { id: "out", label: "-", action: zoomOut },
-                { id: "reset", label: "R", action: zoomReset },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  onClick={item.action}
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 7,
-                    border: "1px solid #334155",
-                    background: "rgba(15, 23, 42, 0.85)",
-                    color: "#cbd5e1",
-                    fontSize: item.id === "reset" ? 12 : 21,
-                    cursor: "pointer",
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
+              {datasetLoading
+                ? "Loading stories..."
+                : centerlineStatus === "loading"
+                ? "Matching NYC centerlines..."
+                : "Loading neighborhoods..."}
+            </div>
+          )}
+        </div>
+
+        <aside className="street-panel">
+          <div className="street-panel-header">
+            <a href="#/">{"<- Back to library"}</a>
+            <h1 className="street-panel-title">Street Stories: Manhattan</h1>
+            <p className="street-panel-subtitle">
+              Explore the naming history of Manhattan streets with source-aware stories.
+            </p>
+            <div className="street-panel-tools">
+              <input
+                className="street-search"
+                type="search"
+                placeholder="Search streets and neighborhoods..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              <button className="street-random" type="button" onClick={jumpToRandom}>
+                Random segment
+              </button>
+            </div>
+            {query ? (
+              <div className="street-search-results">
+                {searchResults.length ? (
+                  searchResults.map((result) => (
+                    <button
+                      type="button"
+                      key={`search-${result.key}`}
+                      onClick={() => {
+                        setQuery("");
+                        chooseStreet(result);
+                      }}
+                    >
+                      <strong>{result.streetName}</strong>
+                      <div style={{ color: "#6b7280", fontSize: 12 }}>{result.neighborhood}</div>
+                    </button>
+                  ))
+                ) : (
+                  <div style={{ padding: 12, color: "#6b7280", fontSize: 13 }}>No matches found.</div>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="street-panel-body">
+            {(selectedStreet || effectiveNeighborhood) && (
+              <button
+                type="button"
+                onClick={clearSelections}
+                style={{
+                  marginBottom: 12,
+                  border: "1px solid #d8d2c4",
+                  background: "#fff",
+                  borderRadius: 8,
+                  padding: "6px 10px",
+                  fontSize: 12,
+                  color: "#555",
+                  cursor: "pointer",
+                }}
+              >
+                Back
+              </button>
+            )}
+            {renderPanelBody()}
+          </div>
+        </aside>
+      </div>
+
+      {isMobile ? (
+        <div
+          className={`mobile-sheet ${mobileSheetExpanded ? "" : "collapsed"}`}
+          style={mobileSheetExpanded ? { transform: `translateY(${dragOffset}px)` } : undefined}
+        >
+          <div
+            className="mobile-sheet-header"
+            onTouchStart={sheetTouchStart}
+            onTouchMove={sheetTouchMove}
+            onTouchEnd={sheetTouchEnd}
+          >
+            <div className="sheet-handle" />
+            <h2 className="mobile-sheet-title">Street Stories: Manhattan</h2>
+            <div className="street-panel-tools" style={{ marginTop: 10 }}>
+              <input
+                className="street-search"
+                type="search"
+                placeholder="Search streets..."
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  if (!mobileSheetExpanded) setMobileSheetPinned(true);
+                }}
+              />
+              <button className="street-random" type="button" onClick={jumpToRandom}>
+                Random
+              </button>
             </div>
           </div>
 
-          <aside
-            style={{
-              border: "1px solid #1f2937",
-              borderRadius: 14,
-              background: "linear-gradient(180deg, rgba(15,23,42,0.95), rgba(11,18,32,0.95))",
-              padding: 14,
-            }}
-          >
-            <div
-              style={{
-                display: "inline-block",
-                borderRadius: 999,
-                border: "1px solid #334155",
-                color: "#94a3b8",
-                fontSize: 10,
-                textTransform: "uppercase",
-                letterSpacing: 1.2,
-                padding: "3px 8px",
-                marginBottom: 10,
-              }}
-            >
-              {selectedSegment.corridor}
-            </div>
-
-            <h2 style={{ margin: "0 0 2px", fontFamily: "Georgia,serif", fontSize: 28 }}>
-              {selectedSegment.currentName}
-            </h2>
-            <div style={{ color: "#93c5fd", fontSize: 12, marginBottom: 8 }}>
-              {selectedSegment.segmentLabel}
-            </div>
-            <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 10 }}>
-              {selectedSegment.bounds}
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              <span
-                style={{
-                  border: `1px solid ${CONFIDENCE_COLORS[selectedSegment.confidence] ?? "#64748b"}66`,
-                  color: CONFIDENCE_COLORS[selectedSegment.confidence] ?? "#cbd5e1",
-                  borderRadius: 999,
-                  fontSize: 10,
-                  textTransform: "uppercase",
-                  letterSpacing: 1.1,
-                  padding: "3px 8px",
-                }}
-              >
-                Confidence: {confidenceLabel(selectedSegment.confidence)}
-              </span>
-            </div>
-
-            <section style={{ marginBottom: 14 }}>
-              <div
-                style={{
-                  fontSize: 10,
-                  textTransform: "uppercase",
-                  letterSpacing: 1.3,
-                  color: "#64748b",
-                  marginBottom: 6,
-                }}
-              >
-                Name origin
+          <div className="street-panel-body">
+            {query ? (
+              <div className="street-search-results" style={{ marginTop: 0 }}>
+                {searchResults.length ? (
+                  searchResults.map((result) => (
+                    <button
+                      type="button"
+                      key={`mobile-search-${result.key}`}
+                      onClick={() => {
+                        setQuery("");
+                        setMobileSheetPinned(true);
+                        chooseStreet(result);
+                      }}
+                    >
+                      <strong>{result.streetName}</strong>
+                      <div style={{ color: "#6b7280", fontSize: 12 }}>{result.neighborhood}</div>
+                    </button>
+                  ))
+                ) : (
+                  <div style={{ padding: 12, color: "#6b7280", fontSize: 13 }}>No matches found.</div>
+                )}
               </div>
-              <p style={{ margin: 0, color: "#cbd5e1", fontSize: 13, lineHeight: 1.58 }}>
-                {selectedSegment.origin}
-              </p>
-            </section>
-
-            {!!selectedSegment.altNames.length && (
-              <section style={{ marginBottom: 14 }}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    textTransform: "uppercase",
-                    letterSpacing: 1.3,
-                    color: "#64748b",
-                    marginBottom: 6,
-                  }}
-                >
-                  Also known as
-                </div>
-                <ul style={{ margin: 0, paddingLeft: 18, color: "#cbd5e1", fontSize: 12.5, lineHeight: 1.5 }}>
-                  {selectedSegment.altNames.map((name) => (
-                    <li key={name}>{name}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {!!selectedSegment.formerNames.length && (
-              <section style={{ marginBottom: 14 }}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    textTransform: "uppercase",
-                    letterSpacing: 1.3,
-                    color: "#64748b",
-                    marginBottom: 6,
-                  }}
-                >
-                  Former / historical names
-                </div>
-                <ul style={{ margin: 0, paddingLeft: 18, color: "#cbd5e1", fontSize: 12.5, lineHeight: 1.5 }}>
-                  {selectedSegment.formerNames.map((name) => (
-                    <li key={name}>{name}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            <section style={{ marginBottom: 14 }}>
-              <div
-                style={{
-                  fontSize: 10,
-                  textTransform: "uppercase",
-                  letterSpacing: 1.3,
-                  color: "#64748b",
-                  marginBottom: 6,
-                }}
-              >
-                Timeline
-              </div>
-              <ul style={{ margin: 0, paddingLeft: 18, color: "#cbd5e1", fontSize: 12.5, lineHeight: 1.5 }}>
-                {selectedSegment.timeline.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </section>
-
-            <section>
-              <div
-                style={{
-                  fontSize: 10,
-                  textTransform: "uppercase",
-                  letterSpacing: 1.3,
-                  color: "#64748b",
-                  marginBottom: 6,
-                }}
-              >
-                Sources
-              </div>
-              <ul style={{ margin: 0, paddingLeft: 18, color: "#93c5fd", fontSize: 12.5, lineHeight: 1.6 }}>
-                {selectedSegment.sources.map((source) => (
-                  <li key={`${source.label}-${source.url || "no-url"}`}>
-                    {source.url ? (
-                      <a
-                        href={source.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ color: "#93c5fd", textDecoration: "none" }}
-                      >
-                        {source.label}
-                      </a>
-                    ) : (
-                      <span style={{ color: "#cbd5e1" }}>{source.label}</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </aside>
+            ) : null}
+            {renderPanelBody()}
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
