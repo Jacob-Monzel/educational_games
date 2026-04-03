@@ -223,7 +223,7 @@
 const TYPES = {
   comparison: { name:"Comparison", relations:["greater than","less than"], inverses:{"greater than":"less than","less than":"greater than"}, icon:"⇅", color:"#3B82F6", desc:"A > B, B > C → A > C" },
   temporal: { name:"Temporal", relations:["before","after"], inverses:{before:"after",after:"before"}, icon:"⏳", color:"#F59E0B", desc:"A before B, B before C → A before C" },
-  sameopposite: { name:"Same / Opposite", relations:["same as","opposite to"], inverses:{"same as":"same as","opposite to":"opposite to"}, icon:"≡≢", color:"#8B5CF6", desc:"A same B, B opp C → A opp C" },
+  sameopposite: { name:"Same / Opposite", relations:["same as","opposite to"], inverses:{"same as":"opposite to","opposite to":"same as"}, icon:"≡≢", color:"#8B5CF6", desc:"A same B, B opp C → A opp C" },
   spatial: { name:"Spatial", relations:["above","below","left of","right of"], inverses:{above:"below",below:"above","left of":"right of","right of":"left of"}, icon:"◈", color:"#10B981", desc:"A above B, B above C → A above C" },
 };
 
