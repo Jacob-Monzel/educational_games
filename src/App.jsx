@@ -265,6 +265,22 @@ function topoFeature(topology, obj) {
 }
 
 const WORLD_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+const FLAG_SOURCES = [
+  (cc) => `https://flagcdn.com/w160/${cc}.png`,
+  (cc) => `https://cdn.jsdelivr.net/npm/flag-icons/flags/4x3/${cc}.svg`,
+  (cc) => `https://raw.githubusercontent.com/lipis/flag-icons/main/flags/4x3/${cc}.svg`,
+  (cc) => `https://hatscripts.github.io/circle-flags/flags/${cc}.svg`,
+];
+const MOBILE_BREAKPOINT = 900;
+const FULL_HEIGHT = "100dvh";
+
+function countryCodeToEmoji(cc) {
+  if (!cc || cc.length !== 2) return null;
+  const upper = cc.toUpperCase();
+  if (!/^[A-Z]{2}$/.test(upper) || upper === "XK") return null;
+  const base = 127397;
+  return String.fromCodePoint(...upper.split("").map((char) => char.charCodeAt(0) + base));
+}
 
 export default function App() {
   const svgRef = useRef(null);
@@ -287,7 +303,13 @@ export default function App() {
   const [answering, setAnswering] = useState(true);
   const [highlights, setHighlights] = useState({});
   const [tooltip, setTooltip] = useState(null);
+  const [touchMoved, setTouchMoved] = useState(false);
   const [flagFailed, setFlagFailed] = useState(false);
+  const [lastTouchTs, setLastTouchTs] = useState(0);
+  const [flagSourceIndex, setFlagSourceIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
+  );
 
   useEffect(() => {
     fetch(WORLD_URL)
@@ -326,7 +348,14 @@ export default function App() {
 
   useEffect(() => {
     setFlagFailed(false);
+    setFlagSourceIndex(0);
   }, [question?.featureId]);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(
     () => () => {
@@ -429,13 +458,22 @@ export default function App() {
     pickQuestion(features, m);
   };
 
+  const onFlagLoadError = () => {
+    const nextIndex = flagSourceIndex + 1;
+    if (nextIndex < FLAG_SOURCES.length) {
+      setFlagSourceIndex(nextIndex);
+    } else {
+      setFlagFailed(true);
+    }
+  };
+
   if (error) {
     return (
       <div
         style={{
           background: "#0f1117",
           color: "#e2e4ea",
-          height: "100vh",
+          height: FULL_HEIGHT,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -459,7 +497,7 @@ export default function App() {
         style={{
           background: "#0f1117",
           color: "#e2e4ea",
-          height: "100vh",
+          height: FULL_HEIGHT,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -494,14 +532,16 @@ export default function App() {
   }
 
   const pathFn = pathRef.current;
-  const flagUrl = question ? `https://flagcdn.com/w160/${question.info.cc}.png` : "";
+  const flagUrl = question ? FLAG_SOURCES[flagSourceIndex](question.info.cc) : "";
+  const flagEmoji = question ? countryCodeToEmoji(question.info.cc) : null;
+  const showTooltip = !isMobile && Boolean(tooltip);
 
   return (
     <div
       style={{
         background: "#0f1117",
         color: "#e2e4ea",
-        height: "100vh",
+        height: FULL_HEIGHT,
         display: "flex",
         flexDirection: "column",
         fontFamily: "'Courier New',monospace",
@@ -514,16 +554,24 @@ export default function App() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "12px 20px",
+          padding: isMobile ? "10px 12px" : "12px 20px",
           borderBottom: "1px solid #2a2e3a",
           background: "#181b24",
           flexShrink: 0,
+          gap: isMobile ? 10 : 0,
         }}
       >
-        <div style={{ fontSize: 24, fontFamily: "Georgia,serif", letterSpacing: -0.5 }}>
+        <div
+          style={{
+            fontSize: isMobile ? 20 : 24,
+            fontFamily: "Georgia,serif",
+            letterSpacing: -0.5,
+            whiteSpace: "nowrap",
+          }}
+        >
           Geo<span style={{ color: "#a78bfa", fontStyle: "italic" }}>Quiz</span>
         </div>
-        <div style={{ display: "flex", gap: 24 }}>
+        <div style={{ display: "flex", gap: isMobile ? 10 : 24 }}>
           {[
             ["Score", score, "#e2e4ea"],
             ["Streak", streak, "#fbbf24"],
@@ -533,10 +581,10 @@ export default function App() {
               <div style={{ fontSize: 20, fontWeight: 600, color: col, lineHeight: 1.2 }}>{val}</div>
               <div
                 style={{
-                  fontSize: 10,
+                  fontSize: isMobile ? 9 : 10,
                   color: "#8b8fa3",
                   textTransform: "uppercase",
-                  letterSpacing: 1.5,
+                  letterSpacing: isMobile ? 1 : 1.5,
                 }}
               >
                 {label}
@@ -552,17 +600,18 @@ export default function App() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          gap: 16,
-          padding: "12px 20px",
+          gap: isMobile ? 10 : 16,
+          padding: isMobile ? "10px 10px" : "12px 20px",
           background: "#181b24",
           borderBottom: "1px solid #2a2e3a",
-          minHeight: 64,
+          minHeight: isMobile ? 58 : 64,
           flexShrink: 0,
+          flexWrap: "wrap",
         }}
       >
         <span
           style={{
-            fontSize: 10,
+            fontSize: isMobile ? 9 : 10,
             textTransform: "uppercase",
             letterSpacing: 2,
             color: "#0f1117",
@@ -576,33 +625,78 @@ export default function App() {
         </span>
         {question && question.mode === "flag" ? (
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            {!flagFailed && (
+            {!flagFailed ? (
               <img
                 src={flagUrl}
-                alt="flag"
+                alt={`${question.info.n} flag`}
+                key={flagUrl}
                 style={{
-                  width: 56,
-                  height: 38,
+                  width: isMobile ? 46 : 56,
+                  height: isMobile ? 31 : 38,
                   borderRadius: 4,
                   objectFit: "cover",
                   border: "1px solid #2a2e3a",
                   boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
                 }}
-                onError={() => setFlagFailed(true)}
+                loading="eager"
+                decoding="async"
+                referrerPolicy="no-referrer"
+                onError={onFlagLoadError}
               />
+            ) : flagEmoji ? (
+              <div
+                aria-label={`${question.info.n} flag emoji`}
+                style={{
+                  fontSize: isMobile ? 28 : 30,
+                  lineHeight: 1,
+                  minWidth: isMobile ? 46 : 56,
+                  textAlign: "center",
+                  border: "1px dashed #8b8fa3",
+                  borderRadius: 6,
+                  padding: "4px 8px",
+                }}
+              >
+                {flagEmoji}
+              </div>
+            ) : (
+              <div
+                style={{
+                  border: "1px dashed #8b8fa3",
+                  color: "#8b8fa3",
+                  fontSize: 10,
+                  padding: "8px 10px",
+                  borderRadius: 6,
+                  textTransform: "uppercase",
+                  letterSpacing: 1.1,
+                }}
+              >
+                Flag unavailable
+              </div>
             )}
-            <span style={{ fontFamily: "Georgia,serif", fontSize: 18 }}>Which country?</span>
+            <span style={{ fontFamily: "Georgia,serif", fontSize: isMobile ? 16 : 18 }}>
+              Which country?
+            </span>
           </div>
         ) : question ? (
-          <span style={{ fontFamily: "Georgia,serif", fontSize: 18 }}>
+          <span style={{ fontFamily: "Georgia,serif", fontSize: isMobile ? 16 : 18 }}>
             Capital: <strong style={{ color: "#a78bfa" }}>{question.info.c}</strong>
           </span>
         ) : null}
-        <span style={{ fontSize: 11, color: "#8b8fa3", marginLeft: 8 }}>click the country</span>
+        <span style={{ fontSize: isMobile ? 10 : 11, color: "#8b8fa3", marginLeft: 8 }}>
+          {isMobile ? "tap the country" : "click the country"}
+        </span>
       </div>
 
       {/* Map */}
-      <div style={{ flex: 1, position: "relative", overflow: "hidden", cursor: "grab" }}>
+      <div
+        style={{
+          flex: 1,
+          position: "relative",
+          overflow: "hidden",
+          cursor: "grab",
+          touchAction: "none",
+        }}
+      >
         <svg ref={svgRef} style={{ display: "block", background: "#0f1117", width: "100%", height: "100%" }}>
           {/* Graticule */}
           {pathFn && (
@@ -633,20 +727,41 @@ export default function App() {
                     fill={fill}
                     stroke={stroke}
                     strokeWidth={sw}
-                    style={{ cursor: "pointer", transition: "fill 0.15s" }}
+                    style={{ cursor: "pointer", transition: "fill 0.15s", touchAction: "none" }}
                     onClick={() => handleClick(f.id)}
                     onMouseEnter={(e) => {
                       const info = COUNTRY_MAP[f.id];
+                      if (isMobile) return;
                       if (info && !highlights[f.id]) {
                         e.target.style.fill = "#3a4058";
                       }
                       setTooltip(info ? { name: info.n, x: e.clientX, y: e.clientY } : null);
                     }}
-                    onMouseMove={(e) =>
-                      setTooltip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : null))
-                    }
+                    onMouseMove={(e) => {
+                      if (isMobile) return;
+                      setTooltip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : null));
+                    }}
                     onMouseLeave={(e) => {
+                      if (isMobile) return;
                       if (!highlights[f.id]) e.target.style.fill = "";
+                      setTooltip(null);
+                    }}
+                    onTouchStart={(e) => {
+                      const info = COUNTRY_MAP[f.id];
+                      if (info && !highlights[f.id]) e.currentTarget.style.fill = "#3a4058";
+                      const touch = e.touches[0];
+                      if (touch) {
+                        setTooltip(info ? { name: info.n, x: touch.clientX, y: touch.clientY } : null);
+                      }
+                    }}
+                    onTouchMove={(e) => {
+                      const touch = e.touches[0];
+                      if (touch) {
+                        setTooltip((t) => (t ? { ...t, x: touch.clientX, y: touch.clientY } : null));
+                      }
+                    }}
+                    onTouchEnd={(e) => {
+                      if (!highlights[f.id]) e.currentTarget.style.fill = "";
                       setTooltip(null);
                     }}
                   />
@@ -671,14 +786,13 @@ export default function App() {
           {[
             ["zoom-in", "+", zoomIn],
             ["zoom-out", "-", zoomOut],
-            ["zoom-reset", "R", zoomReset],
+            ["zoom-reset", "\u27f2", zoomReset],
           ].map(([k, label, fn]) => (
             <button
               key={k}
               onClick={fn}
+              aria-label={k}
               style={{
-                width: 36,
-                height: 36,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -686,8 +800,10 @@ export default function App() {
                 border: "1px solid #2a2e3a",
                 borderRadius: 4,
                 color: "#8b8fa3",
-                fontSize: label === "R" ? 14 : 18,
+                fontSize: label === "\u27f2" ? 14 : isMobile ? 20 : 22,
                 cursor: "pointer",
+                width: isMobile ? 40 : 36,
+                height: isMobile ? 40 : 36,
               }}
             >
               {label}
@@ -696,7 +812,7 @@ export default function App() {
         </div>
 
         {/* Tooltip */}
-        {tooltip && (
+        {showTooltip && (
           <div
             style={{
               position: "fixed",
@@ -748,11 +864,12 @@ export default function App() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          gap: 10,
-          padding: "10px 20px",
+          gap: 8,
+          padding: isMobile ? "10px 10px" : "10px 20px",
           borderTop: "1px solid #2a2e3a",
           background: "#181b24",
           flexShrink: 0,
+          flexWrap: "wrap",
         }}
       >
         {["mixed", "flag", "capital"].map((m) => (
@@ -761,15 +878,16 @@ export default function App() {
             onClick={() => changeMode(m)}
             style={{
               fontFamily: "monospace",
-              fontSize: 11,
+              fontSize: isMobile ? 12 : 11,
               letterSpacing: 1,
               textTransform: "uppercase",
-              padding: "7px 16px",
+              padding: isMobile ? "10px 16px" : "7px 16px",
               border: `1px solid ${mode === m ? "#a78bfa" : "#2a2e3a"}`,
               borderRadius: 4,
               background: mode === m ? "rgba(167,139,250,0.08)" : "transparent",
               color: mode === m ? "#a78bfa" : "#8b8fa3",
               cursor: "pointer",
+              minHeight: isMobile ? 42 : "auto",
             }}
           >
             {m}
@@ -780,15 +898,16 @@ export default function App() {
           onClick={skip}
           style={{
             fontFamily: "monospace",
-            fontSize: 11,
+            fontSize: isMobile ? 12 : 11,
             letterSpacing: 1,
             textTransform: "uppercase",
-            padding: "7px 16px",
+            padding: isMobile ? "10px 16px" : "7px 16px",
             border: "1px solid #8b8fa3",
             borderRadius: 4,
             background: "transparent",
             color: "#8b8fa3",
             cursor: "pointer",
+            minHeight: isMobile ? 42 : "auto",
           }}
         >
           Skip -&gt;

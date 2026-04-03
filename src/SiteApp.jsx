@@ -45,7 +45,13 @@ function LibraryHome() {
         fontFamily: "'Courier New',monospace",
       }}
     >
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 20px 48px" }}>
+      <div
+        style={{
+          maxWidth: 1100,
+          margin: "0 auto",
+          padding: "max(env(safe-area-inset-top), 24px) 20px max(env(safe-area-inset-bottom), 24px)",
+        }}
+      >
         <header style={{ marginBottom: 26 }}>
           <div
             style={{
