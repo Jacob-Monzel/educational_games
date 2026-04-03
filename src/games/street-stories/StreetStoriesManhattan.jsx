@@ -101,9 +101,6 @@ export default function StreetStoriesManhattan() {
   const touchStartRef = useRef(null);
 
   const mapToken = import.meta.env.VITE_MAPBOX_TOKEN || "";
-  const mapEnabled = Boolean(mapToken) && !mapFailed;
-  const mapSupported =
-    typeof window !== "undefined" && typeof window.WebGLRenderingContext !== "undefined";
 
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < 1024 : false
@@ -135,6 +132,9 @@ export default function StreetStoriesManhattan() {
   const [matchedStreetKeys, setMatchedStreetKeys] = useState(() => new Set());
   const [streetCenters, setStreetCenters] = useState(() => new Map());
   const [mapFailed, setMapFailed] = useState(false);
+  const mapEnabled = Boolean(mapToken) && !mapFailed;
+  const mapSupported =
+    typeof window !== "undefined" && typeof window.WebGLRenderingContext !== "undefined";
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 1024);
