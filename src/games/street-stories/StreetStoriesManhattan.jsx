@@ -444,15 +444,19 @@ export default function StreetStoriesManhattan() {
               </div>
               <ul style={{ margin: 0, paddingLeft: 18, color: "#93c5fd", fontSize: 12.5, lineHeight: 1.6 }}>
                 {selectedSegment.sources.map((source) => (
-                  <li key={`${source.label}-${source.url}`}>
-                    <a
-                      href={source.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ color: "#93c5fd", textDecoration: "none" }}
-                    >
-                      {source.label}
-                    </a>
+                  <li key={`${source.label}-${source.url || "no-url"}`}>
+                    {source.url ? (
+                      <a
+                        href={source.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: "#93c5fd", textDecoration: "none" }}
+                      >
+                        {source.label}
+                      </a>
+                    ) : (
+                      <span style={{ color: "#cbd5e1" }}>{source.label}</span>
+                    )}
                   </li>
                 ))}
               </ul>
