@@ -15,6 +15,7 @@
   position: relative;
   min-height: 100dvh;
   border-right: 1px solid #ddd9cf;
+  background: #f3f0e8;
 }
 
 .street-map {

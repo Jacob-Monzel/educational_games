@@ -101,6 +101,9 @@ export default function StreetStoriesManhattan() {
   const touchStartRef = useRef(null);
 
   const mapToken = import.meta.env.VITE_MAPBOX_TOKEN || "";
+  const mapEnabled = Boolean(mapToken) && !mapFailed;
+  const mapSupported =
+    typeof window !== "undefined" && typeof window.WebGLRenderingContext !== "undefined";
 
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < 1024 : false
@@ -156,6 +159,11 @@ export default function StreetStoriesManhattan() {
   }, []);
 
   useEffect(() => {
+    if (!mapEnabled || !mapSupported) {
+      setNtaGeoJson(EMPTY_FC);
+      setNtaStatus("idle");
+      return;
+    }
     let active = true;
     setNtaStatus("loading");
     fetchNtaManhattanGeoJson()
@@ -172,9 +180,16 @@ export default function StreetStoriesManhattan() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [mapEnabled, mapSupported]);
 
   useEffect(() => {
+    if (!mapEnabled || !mapSupported) {
+      setMatchedCenterlineGeoJson(EMPTY_FC);
+      setMatchedStreetKeys(new Set());
+      setStreetCenters(new Map());
+      setCenterlineStatus("idle");
+      return;
+    }
     if (!dataset.streetGroups.length) return;
     let active = true;
     setCenterlineStatus("loading");
@@ -200,7 +215,7 @@ export default function StreetStoriesManhattan() {
     return () => {
       active = false;
     };
-  }, [dataset.streetGroups]);
+  }, [dataset.streetGroups, mapEnabled, mapSupported]);
 
   const streetByKey = useMemo(
     () => new Map(dataset.streetGroups.map((group) => [group.key, group])),
@@ -511,7 +526,7 @@ export default function StreetStoriesManhattan() {
     <div className="street-stories-root">
       <div className="street-stories-layout">
         <div className="street-map-wrap">
-          {mapToken && !mapFailed ? (
+          {mapEnabled && mapSupported ? (
             <Map
               ref={mapRef}
               mapLib={mapboxgl}
@@ -599,12 +614,18 @@ export default function StreetStoriesManhattan() {
             >
               <div style={{ maxWidth: 520, textAlign: "center" }}>
                 <h3 style={{ marginBottom: 8, fontFamily: "Source Serif 4, serif" }}>
-                  {mapToken ? "Map rendering unavailable" : "Mapbox token required"}
+                  {!mapToken
+                    ? "Mapbox token required"
+                    : !mapSupported
+                    ? "Map unsupported on this device"
+                    : "Map rendering unavailable"}
                 </h3>
                 <p style={{ margin: 0 }}>
-                  {mapToken
-                    ? "This browser or device cannot initialize the map right now. The story panel remains available while we improve compatibility."
-                    : "Set "}
+                  {!mapToken
+                    ? "Set "
+                    : !mapSupported
+                    ? "Your browser does not support WebGL. You can still explore all street stories in the side panel."
+                    : "This browser or device cannot initialize the map right now. The story panel remains available while we improve compatibility."}
                   {!mapToken ? <code>VITE_MAPBOX_TOKEN</code> : null}
                   {!mapToken ? " to render the live Manhattan basemap and street overlays." : null}
                 </p>

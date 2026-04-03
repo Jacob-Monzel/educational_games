@@ -118,7 +118,7 @@ export async function fetchNtaManhattanGeoJson() {
 
 export async function fetchManhattanCenterlines() {
   const url =
-    "https://data.cityofnewyork.us/resource/inkn-q76z.geojson?$where=boroughcode%3D%271%27&$limit=15000";
+    "https://data.cityofnewyork.us/resource/inkn-q76z.geojson?$select=the_geom%2Cstname_label%2Cfull_street_name%2Cstreet_name%2Cboroughcode&$where=boroughcode%3D%271%27&$limit=15000";
   const response = await fetch(url);
   if (!response.ok) throw new Error(`CSCL fetch failed (${response.status})`);
   return response.json();
@@ -162,18 +162,6 @@ export function matchStreetGroupsToCenterlines(streetGroups, centerlineGeoJson) 
     for (const variant of variants) {
       const exact = index.get(variant);
       if (exact?.length) groupMatches = groupMatches.concat(exact);
-    }
-
-    if (!groupMatches.length) {
-      const base = variants[0] ?? normalizeStreetName(group.streetName);
-      if (base) {
-        const basePrefix = base.split(" ").slice(0, 2).join(" ");
-        for (const [candidateName, candidateFeatures] of index.entries()) {
-          if (!candidateName.startsWith(basePrefix)) continue;
-          if (tokenScore(base, candidateName) < 0.66) continue;
-          groupMatches = groupMatches.concat(candidateFeatures);
-        }
-      }
     }
 
     const deduped = Array.from(new Set(groupMatches));
