@@ -368,7 +368,6 @@ export default function App() {
   useEffect(() => {
     if (!features.length || !svgRef.current) return;
     const svg = d3.select(svgRef.current);
-    const g = d3.select(gRef.current);
     const w = svgRef.current.parentElement.clientWidth;
     const h = svgRef.current.parentElement.clientHeight;
     svg.attr("width", w).attr("height", h);
@@ -381,7 +380,10 @@ export default function App() {
     pathRef.current = d3.geoPath().projection(proj);
 
     const zoom = d3.zoom().scaleExtent([1, 12]).on("zoom", (e) => {
-      g.attr("transform", e.transform);
+      // Read the current group node at event time so zoom still works
+      // even if the <g> mounts after this effect's first run.
+      const gNode = gRef.current;
+      if (gNode) d3.select(gNode).attr("transform", e.transform);
     });
     svg.call(zoom);
     zoomRef.current = { zoom, svg };
