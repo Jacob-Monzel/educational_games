@@ -302,6 +302,7 @@ export default function App() {
   const [feedback, setFeedback] = useState(null);
   const [answering, setAnswering] = useState(true);
   const [highlights, setHighlights] = useState({});
+  const [hoveredCountryName, setHoveredCountryName] = useState(null);
   const [tooltip, setTooltip] = useState(null);
   const [touchMoved, setTouchMoved] = useState(false);
   const [flagFailed, setFlagFailed] = useState(false);
@@ -349,6 +350,11 @@ export default function App() {
   useEffect(() => {
     setFlagFailed(false);
     setFlagSourceIndex(0);
+  }, [question?.featureId]);
+
+  useEffect(() => {
+    setHoveredCountryName(null);
+    setTooltip(null);
   }, [question?.featureId]);
 
   useEffect(() => {
@@ -468,6 +474,16 @@ export default function App() {
       setFlagFailed(true);
     }
   };
+
+  const updateHoverState = useCallback((info, x, y) => {
+    setHoveredCountryName(info?.n ?? null);
+    setTooltip(info ? { name: info.n, x, y } : null);
+  }, []);
+
+  const clearHoverState = useCallback(() => {
+    setHoveredCountryName(null);
+    setTooltip(null);
+  }, []);
 
   if (error) {
     return (
@@ -731,47 +747,66 @@ export default function App() {
                     strokeWidth={sw}
                     style={{ cursor: "pointer", transition: "fill 0.15s", touchAction: "none" }}
                     onClick={() => handleClick(f.id)}
-                    onMouseEnter={(e) => {
+                    onPointerEnter={(e) => {
+                      if (e.pointerType && e.pointerType !== "mouse") return;
                       const info = COUNTRY_MAP[f.id];
-                      if (isMobile) return;
                       if (info && !highlights[f.id]) {
-                        e.target.style.fill = "#3a4058";
+                        e.currentTarget.style.fill = "#3a4058";
                       }
-                      setTooltip(info ? { name: info.n, x: e.clientX, y: e.clientY } : null);
+                      updateHoverState(info, e.clientX, e.clientY);
                     }}
-                    onMouseMove={(e) => {
-                      if (isMobile) return;
-                      setTooltip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : null));
+                    onPointerMove={(e) => {
+                      if (e.pointerType && e.pointerType !== "mouse") return;
+                      const info = COUNTRY_MAP[f.id];
+                      updateHoverState(info, e.clientX, e.clientY);
                     }}
-                    onMouseLeave={(e) => {
-                      if (isMobile) return;
-                      if (!highlights[f.id]) e.target.style.fill = "";
-                      setTooltip(null);
+                    onPointerLeave={(e) => {
+                      if (e.pointerType && e.pointerType !== "mouse") return;
+                      if (!highlights[f.id]) e.currentTarget.style.fill = "";
+                      clearHoverState();
                     }}
                     onTouchStart={(e) => {
                       const info = COUNTRY_MAP[f.id];
                       if (info && !highlights[f.id]) e.currentTarget.style.fill = "#3a4058";
-                      const touch = e.touches[0];
-                      if (touch) {
-                        setTooltip(info ? { name: info.n, x: touch.clientX, y: touch.clientY } : null);
-                      }
+                      setHoveredCountryName(info?.n ?? null);
                     }}
                     onTouchMove={(e) => {
-                      const touch = e.touches[0];
-                      if (touch) {
-                        setTooltip((t) => (t ? { ...t, x: touch.clientX, y: touch.clientY } : null));
-                      }
+                      const info = COUNTRY_MAP[f.id];
+                      setHoveredCountryName(info?.n ?? null);
                     }}
                     onTouchEnd={(e) => {
                       if (!highlights[f.id]) e.currentTarget.style.fill = "";
-                      setTooltip(null);
+                      clearHoverState();
                     }}
-                  />
+                  >
+                    <title>{COUNTRY_MAP[f.id].n}</title>
+                  </path>
                 );
               })}
             </g>
           )}
         </svg>
+
+        {!isMobile && hoveredCountryName && (
+          <div
+            style={{
+              position: "absolute",
+              top: 16,
+              left: 16,
+              padding: "6px 12px",
+              background: "rgba(24, 27, 36, 0.94)",
+              color: "#e2e4ea",
+              fontSize: 12,
+              letterSpacing: 0.3,
+              borderRadius: 999,
+              border: "1px solid #2a2e3a",
+              pointerEvents: "none",
+              zIndex: 60,
+            }}
+          >
+            {hoveredCountryName}
+          </div>
+        )}
 
         {/* Zoom controls */}
         <div
