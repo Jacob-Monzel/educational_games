@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "cursor/geo-quiz-country-hover-2322"]
   workflow_dispatch:
 
 permissions:
