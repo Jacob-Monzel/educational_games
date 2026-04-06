@@ -31,8 +31,6 @@ jobs:
         run: npm ci
 
       - name: Build site
-        env:
-          VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN || secrets.MAPBOX_TOKEN || vars.VITE_MAPBOX_TOKEN || vars.MAPBOX_TOKEN }}
         run: npm run build
 
       - name: Upload artifact

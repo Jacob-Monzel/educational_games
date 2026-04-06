@@ -8,8 +8,6 @@ A multi-game web app built with React + Vite, designed for GitHub Pages deployme
 - `src/games/` - each game in its own subfolder
   - `src/games/geo-quiz/GeoQuizGame.jsx` - Geo Quiz entry
   - `src/games/relational-reasoning/RelationalReasoningGame.jsx` - SMART relational trainer entry
-  - `src/games/street-stories/StreetStoriesManhattan.jsx` - Street Stories atlas entry
-  - `src/games/street-stories/manhattanData.js` - curated Manhattan segment dataset + sources
 - `src/App.jsx` - current Geo Quiz implementation
 - `public/games/relational-reasoning/index.html` - standalone relational trainer page
 
@@ -27,22 +25,8 @@ Open the app and choose a game from the landing page.
 - `#/` - game library landing page
 - `#/games/geo-quiz` - Geo Quiz
 - `#/games/relational-reasoning` - SMART relational reasoning trainer
-- `#/games/street-stories-manhattan` - Street Stories Manhattan atlas MVP
 
 Hash routes are used so deep links work on GitHub Pages.
-
-## Extending Street Stories data
-
-The Manhattan MVP ships with a curated seed dataset in `src/games/street-stories/manhattanData.js`.
-
-Each street segment can store:
-- current name + corridor
-- segment bounds (where that specific naming applies)
-- alternate and former names
-- origin summary
-- timeline bullets
-- confidence level + source links
-- map geometry as a line (lon/lat coordinates)
 
 ## Deploy to GitHub Pages
 

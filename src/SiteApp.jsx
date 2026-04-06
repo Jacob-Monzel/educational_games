@@ -1,10 +1,6 @@
-import { Component, Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import GeoQuizGame from "./games/geo-quiz/GeoQuizGame";
 import RelationalReasoningGame from "./games/relational-reasoning/RelationalReasoningGame";
-
-const StreetStoriesManhattan = lazy(() =>
-  import("./games/street-stories/StreetStoriesManhattan")
-);
 
 const GAME_LIBRARY = [
   {
@@ -180,99 +176,6 @@ function NotFound() {
   );
 }
 
-function RouteLoading() {
-  return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        background: "#fafaf8",
-        color: "#6B7280",
-        fontFamily: "'Source Sans 3', sans-serif",
-      }}
-    >
-      Loading map experience...
-    </main>
-  );
-}
-
-class RouteErrorBoundary extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, errorMessage: "" };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error) {
-    this.setState({
-      errorMessage:
-        error?.message || "Unknown runtime error in Street Stories route.",
-    });
-  }
-
-  render() {
-    if (!this.state.hasError) return this.props.children;
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          display: "grid",
-          placeItems: "center",
-          background: "#fafaf8",
-          color: "#2c2c2c",
-          fontFamily: "'Source Sans 3', sans-serif",
-          padding: 20,
-        }}
-      >
-        <div style={{ maxWidth: 560, textAlign: "center" }}>
-          <h2 style={{ margin: "0 0 8px", fontFamily: "'Source Serif 4', serif" }}>
-            Street Stories failed to load
-          </h2>
-          <p style={{ margin: "0 0 14px", color: "#6b7280" }}>
-            This route hit a runtime error. Refresh and try again, or return to the library.
-          </p>
-          {this.state.errorMessage ? (
-            <pre
-              style={{
-                margin: "0 0 14px",
-                padding: "10px 12px",
-                border: "1px solid #e5dfd2",
-                borderRadius: 8,
-                background: "#fff",
-                color: "#444",
-                textAlign: "left",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                fontSize: 12,
-              }}
-            >
-              {this.state.errorMessage}
-            </pre>
-          ) : null}
-          <a
-            href="#/"
-            style={{
-              display: "inline-block",
-              textDecoration: "none",
-              color: "#2c2c2c",
-              border: "1px solid #d8d2c4",
-              borderRadius: 8,
-              padding: "8px 12px",
-              background: "#fff",
-            }}
-          >
-            Back to game library
-          </a>
-        </div>
-      </main>
-    );
-  }
-}
-
 export default function SiteApp() {
   const [route, setRoute] = useState(getRouteFromHash);
 
@@ -286,15 +189,6 @@ export default function SiteApp() {
     if (route === "/") return <LibraryHome />;
     if (route === "/games/geo-quiz") return <GeoQuizGame />;
     if (route === "/games/relational-reasoning") return <RelationalReasoningGame />;
-    if (route === "/games/street-stories-manhattan") {
-      return (
-        <Suspense fallback={<RouteLoading />}>
-          <RouteErrorBoundary>
-            <StreetStoriesManhattan />
-          </RouteErrorBoundary>
-        </Suspense>
-      );
-    }
     return <NotFound />;
   }, [route]);
 
