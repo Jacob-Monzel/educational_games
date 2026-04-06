@@ -303,9 +303,7 @@ export default function App() {
   const [answering, setAnswering] = useState(true);
   const [highlights, setHighlights] = useState({});
   const [tooltip, setTooltip] = useState(null);
-  const [touchMoved, setTouchMoved] = useState(false);
   const [flagFailed, setFlagFailed] = useState(false);
-  const [lastTouchTs, setLastTouchTs] = useState(0);
   const [flagSourceIndex, setFlagSourceIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
@@ -731,38 +729,19 @@ export default function App() {
                     strokeWidth={sw}
                     style={{ cursor: "pointer", transition: "fill 0.15s", touchAction: "none" }}
                     onClick={() => handleClick(f.id)}
-                    onMouseEnter={(e) => {
+                    onPointerEnter={(e) => {
                       const info = COUNTRY_MAP[f.id];
-                      if (isMobile) return;
-                      if (info && !highlights[f.id]) {
-                        e.target.style.fill = "#3a4058";
+                      if (!isMobile && info && !highlights[f.id]) {
+                        e.currentTarget.style.fill = "#3a4058";
                       }
-                      setTooltip(info ? { name: info.n, x: e.clientX, y: e.clientY } : null);
+                      if (info) {
+                        setTooltip({ name: info.n, x: e.clientX, y: e.clientY });
+                      }
                     }}
-                    onMouseMove={(e) => {
-                      if (isMobile) return;
+                    onPointerMove={(e) => {
                       setTooltip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : null));
                     }}
-                    onMouseLeave={(e) => {
-                      if (isMobile) return;
-                      if (!highlights[f.id]) e.target.style.fill = "";
-                      setTooltip(null);
-                    }}
-                    onTouchStart={(e) => {
-                      const info = COUNTRY_MAP[f.id];
-                      if (info && !highlights[f.id]) e.currentTarget.style.fill = "#3a4058";
-                      const touch = e.touches[0];
-                      if (touch) {
-                        setTooltip(info ? { name: info.n, x: touch.clientX, y: touch.clientY } : null);
-                      }
-                    }}
-                    onTouchMove={(e) => {
-                      const touch = e.touches[0];
-                      if (touch) {
-                        setTooltip((t) => (t ? { ...t, x: touch.clientX, y: touch.clientY } : null));
-                      }
-                    }}
-                    onTouchEnd={(e) => {
+                    onPointerLeave={(e) => {
                       if (!highlights[f.id]) e.currentTarget.style.fill = "";
                       setTooltip(null);
                     }}
@@ -813,28 +792,29 @@ export default function App() {
           ))}
         </div>
 
-        {/* Tooltip */}
-        {showTooltip && (
-          <div
-            style={{
-              position: "fixed",
-              left: tooltip.x + 14,
-              top: tooltip.y - 10,
-              padding: "4px 10px",
-              background: "rgba(0,0,0,0.85)",
-              color: "#e2e4ea",
-              fontSize: 12,
-              borderRadius: 4,
-              pointerEvents: "none",
-              zIndex: 200,
-              border: "1px solid #2a2e3a",
-              backdropFilter: "blur(4px)",
-            }}
-          >
-            {tooltip.name}
-          </div>
-        )}
       </div>
+
+      {/* Tooltip — rendered outside the overflow:hidden map container */}
+      {showTooltip && (
+        <div
+          style={{
+            position: "fixed",
+            left: tooltip.x + 14,
+            top: tooltip.y - 10,
+            padding: "4px 10px",
+            background: "rgba(0,0,0,0.85)",
+            color: "#e2e4ea",
+            fontSize: 12,
+            borderRadius: 4,
+            pointerEvents: "none",
+            zIndex: 200,
+            border: "1px solid #2a2e3a",
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          {tooltip.name}
+        </div>
+      )}
 
       {/* Feedback toast */}
       {feedback && (
