@@ -273,6 +273,7 @@ const FLAG_SOURCES = [
 ];
 const MOBILE_BREAKPOINT = 900;
 const FULL_HEIGHT = "100dvh";
+const HOVER_MEDIA_QUERY = "(hover: hover) and (pointer: fine)";
 
 function countryCodeToEmoji(cc) {
   if (!cc || cc.length !== 2) return null;
@@ -310,6 +311,10 @@ export default function App() {
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
   );
+  const [canHover, setCanHover] = useState(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+    return window.matchMedia(HOVER_MEDIA_QUERY).matches;
+  });
 
   useEffect(() => {
     fetch(WORLD_URL)
@@ -353,8 +358,34 @@ export default function App() {
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+    const mediaQuery =
+      typeof window !== "undefined" && typeof window.matchMedia === "function"
+        ? window.matchMedia(HOVER_MEDIA_QUERY)
+        : null;
+    const onPointerCapabilityChange = (event) => {
+      setCanHover(event.matches);
+    };
+
+    onResize();
+    if (mediaQuery) {
+      setCanHover(mediaQuery.matches);
+      if (typeof mediaQuery.addEventListener === "function") {
+        mediaQuery.addEventListener("change", onPointerCapabilityChange);
+      } else {
+        mediaQuery.addListener(onPointerCapabilityChange);
+      }
+    }
+
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      if (!mediaQuery) return;
+      if (typeof mediaQuery.removeEventListener === "function") {
+        mediaQuery.removeEventListener("change", onPointerCapabilityChange);
+      } else {
+        mediaQuery.removeListener(onPointerCapabilityChange);
+      }
+    };
   }, []);
 
   useEffect(
@@ -536,7 +567,7 @@ export default function App() {
   const pathFn = pathRef.current;
   const flagUrl = question ? FLAG_SOURCES[flagSourceIndex](question.info.cc) : "";
   const flagEmoji = question ? countryCodeToEmoji(question.info.cc) : null;
-  const showTooltip = !isMobile && Boolean(tooltip);
+  const showTooltip = canHover && Boolean(tooltip);
 
   return (
     <div
@@ -733,18 +764,18 @@ export default function App() {
                     onClick={() => handleClick(f.id)}
                     onMouseEnter={(e) => {
                       const info = COUNTRY_MAP[f.id];
-                      if (isMobile) return;
+                      if (!canHover) return;
                       if (info && !highlights[f.id]) {
                         e.target.style.fill = "#3a4058";
                       }
                       setTooltip(info ? { name: info.n, x: e.clientX, y: e.clientY } : null);
                     }}
                     onMouseMove={(e) => {
-                      if (isMobile) return;
+                      if (!canHover) return;
                       setTooltip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : null));
                     }}
                     onMouseLeave={(e) => {
-                      if (isMobile) return;
+                      if (!canHover) return;
                       if (!highlights[f.id]) e.target.style.fill = "";
                       setTooltip(null);
                     }}
